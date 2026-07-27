@@ -21,7 +21,7 @@ var PREFIX_REKOD = "REKOD_";
 /* ID FOLDER GOOGLE DRIVE untuk simpan gambar atlet.
    Ambil dari URL folder: https://drive.google.com/drive/folders/<ID_INI>
    Biarkan kosong ("") jika mahu skrip cipta folder "GAMBAR ATLET" secara automatik. */
-var FOLDER_GAMBAR_ID = "";
+var FOLDER_GAMBAR_ID = "1Nz0S__dRbA4vP4Ca0xBRhpdPNUj4KVOf";
 var NAMA_FOLDER_GAMBAR = "GAMBAR ATLET";
 
 var ADMIN_EMEL = "admin";
