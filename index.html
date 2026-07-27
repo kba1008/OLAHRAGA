@@ -297,6 +297,44 @@ function terbaik(n,id){
 }
 const purata=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 
+/* ---------- Format masa larian (jangan tukar semua kepada saat) ----------
+   Input diterima: "15.45" (saat), "1:15.45" atau "1.15.45" (1 minit 15.45 saat),
+   juga "1:02:03.5" (jam:minit:saat). Disimpan sebagai saat, dipapar semula
+   dalam bentuk minit bagi acara jarak jauh (>= 60 saat).                  */
+function huraiMasa(teks){
+  const t=String(teks==null?"":teks).trim().replace(",",".");
+  if(!t) return NaN;
+  let bhg=[];
+  if(t.indexOf(":")>-1){ bhg=t.split(":"); }
+  else {
+    const p=t.split(".");
+    if(p.length===3) bhg=[p[0], p[1]+"."+p[2]];              /* 1.15.45 = 1 min 15.45 saat */
+    else if(p.length===4) bhg=[p[0], p[1], p[2]+"."+p[3]];   /* 1.02.03.50 = 1 jam 2 min 3.50 saat */
+    else bhg=[t];
+  }
+  bhg=bhg.map(x=>String(x).trim());
+  if(bhg.some(x=>x===""||isNaN(Number(x)))) return NaN;
+  if(bhg.length===1) return Number(bhg[0]);
+  if(bhg.length===2) return Number(bhg[0])*60+Number(bhg[1]);
+  return Number(bhg[0])*3600+Number(bhg[1])*60+Number(bhg[2]);
+}
+function fmtSaat(v){
+  const x=Number(v); if(!isFinite(x)) return "-";
+  if(x<60) return x.toFixed(2);
+  const j=Math.floor(x/3600), b=x-j*3600;
+  const m=Math.floor(b/60), s=b-m*60;
+  const ss=(s<10?"0":"")+s.toFixed(2);
+  return j>0 ? j+":"+(m<10?"0":"")+m+":"+ss : m+":"+ss;
+}
+/* Nilai + unit yang betul mengikut jenis acara */
+function fmtNilai(v,info){
+  const x=Number(v); if(v==null||!isFinite(x)) return "-";
+  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?" saat":" min");
+  return x.toFixed(2)+((info&&info.UNIT)?" "+info.UNIT:"");
+}
+function fmtNilaiUnit(v,jenis,unit){ return fmtNilai(v,{JENIS:jenis,UNIT:unit}); }
+
+
 /* ---------- Format tarikh & masa ----------
    TARIKH : dd/MM/yyyy      MASA : 8.00am / 3.45pm                        */
 function masaKunci(v){ /* HH:mm:ss untuk tujuan susunan sahaja */
@@ -607,7 +645,7 @@ function vAcara(){
     return `<div class="item" onclick="go('acaraDetail',{acara:'${esc(n)}'})">
       <div class="rank">${esc(String(n).slice(0,3))}</div>
       <div style="flex:1"><div class="nm">${esc(n)}</div>
-        <div class="sub">${penyertaan(n).length} atlet • ${rekodAcara(n).length} rekod • ${a.JENIS==="MASA"?"Masa (saat)":"Jarak (meter)"}</div>
+        <div class="sub">${penyertaan(n).length} atlet • ${rekodAcara(n).length} rekod • ${a.JENIS==="MASA"?"Masa (saat / minit)":"Jarak (meter)"}</div>
         <div class="sub">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
       <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}</div>
@@ -617,7 +655,7 @@ function vAcara(){
 function formAcara(){
   overlay(`<div class="big">Tambah Acara</div>
   <label>Nama Acara</label><input id="an" placeholder="Cth: 4X100 M"/>
-  <label>Jenis</label><select id="aj"><option value="MASA">Masa (saat — makin rendah makin baik)</option><option value="JARAK">Jarak (meter — makin tinggi makin baik)</option></select>
+  <label>Jenis</label><select id="aj"><option value="MASA">Masa (saat / minit — makin rendah makin baik)</option><option value="JARAK">Jarak (meter — makin tinggi makin baik)</option></select>
   <button class="btn" id="btnAcara" onclick="simpanAcara()">Simpan</button><button class="btn ghost" onclick="tutup()">Batal</button>`);
 }
 async function simpanAcara(){
@@ -676,7 +714,7 @@ function vAcaraDetail(){
 
   app().innerHTML=`${topbar(n,"acara")}
   <div class="card">
-    <span class="badge">${info.JENIS==="MASA"?"MASA (SAAT)":"JARAK (METER)"}</span>
+    <span class="badge">${info.JENIS==="MASA"?"MASA (saat / minit — cth 1:15.45)":"JARAK (METER)"}</span>
     <div class="small" style="margin-top:10px">Jurulatih dilantik (${jl.length}/10):</div>
     <div>${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${isAdmin()?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
     ${isAdmin()?`<button class="btn sm ghost" style="margin-top:10px" onclick="formJurulatih('${esc(n)}')">+ Lantik Jurulatih</button>`:""}
@@ -711,7 +749,7 @@ function itemAcaraDetail(n,p,info,boleh,t){
     <div style="flex:1" onclick="go('profil',{id:'${esc(p["ATLET ID"])}'})">
       <div class="nm">${esc(p["NAMA ATLET"])}</div>
       <div class="sub">${esc(p.KATEGORI)} • ${esc(p.SEKOLAH)}</div>
-      <div class="sub">Terbaik: <b>${b!==null?b+" "+info.UNIT:esc(p["REKOD PERIBADI"]||"Tiada rekod")}</b> ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}</div>
+      <div class="sub">Terbaik: <b>${b!==null?fmtNilai(b,info):esc(p["REKOD PERIBADI"]||"Tiada rekod")}</b> ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}</div>
       ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}):</div>${chips}`:""}
     </div>
     ${boleh?`<button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>`:""}
@@ -767,7 +805,8 @@ function formRekod(n,id){
   overlay(`<div class="big">Rekod Latihan</div>
   <div class="small">${esc(n)} • ${esc(a["NAMA PENUH"]||"")}</div>
   <label>Tarikh</label><input type="date" id="rt" value="${today()}"/>
-  <label>Keputusan (${esc(info.JENIS==="MASA"?"saat":"meter")})</label><input id="rv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 13.94":"Cth: 4.63"}"/>
+  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label><input id="rv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 15.45 (saat) atau 1:15.45 / 1.15.45 (1 min 15.45 saat)":"Cth: 4.63"}"/>
+  ${info.JENIS==="MASA"?`<div class="small">Acara jarak jauh: tulis dalam bentuk minit — <b>1:15.45</b> atau <b>1.15.45</b> bermaksud 1 minit 15.45 saat. Jangan tukar kepada saat.</div>`:""}
   <label>Catatan</label><textarea id="rc" rows="2" placeholder="Cth: pusingan ke-2"></textarea>
   <button class="btn" id="btnR" onclick="simpanR('${esc(n)}','${esc(id)}')">Simpan Rekod</button>
   <button class="btn ghost" onclick="tutup()">Tutup</button>`);
@@ -775,11 +814,12 @@ function formRekod(n,id){
 }
 async function simpanR(n,id){
   const btn=$("#btnR"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
-  const a=atletById(id)||{}, nilai=parseFloat($("#rv").value), tarikh=$("#rt").value, catatan=$("#rc").value.trim();
-  if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod";} return toast("Masukkan keputusan yang sah"); }
-  const info=acaraInfo(n);
+  const a=atletById(id)||{}, info=acaraInfo(n);
+  const mentah=$("#rv").value;
+  const nilai=info.JENIS==="MASA"?huraiMasa(mentah):parseFloat(String(mentah).replace(",","."));
+  if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 15.45 atau 1:15.45)":"Masukkan keputusan yang sah"); }
   try{
-    const r=await api("rekod",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,keputusan:nilai+" "+info.UNIT,nilai,catatan,tarikh,...who()});
+    const r=await api("rekod",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,keputusan:fmtNilai(nilai,info),nilai,catatan,tarikh,...who()});
     if(r && r.rekod) tambahRekodLokal(n, r.rekod);
     tutup();
     render(); /* Sentiasa lukis semula supaya rekod baharu terus muncul tanpa perlu refresh */
@@ -841,8 +881,8 @@ function vProfil(){
     const n=x.ACARA, rs=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(a.ID)).sort((p,q)=>String(q.TARIKH).localeCompare(String(p.TARIKH)));
     const b=terbaik(n,a.ID);
     return `<div class="card"><div class="row" style="align-items:center">
-      <div><div class="nm">${esc(n)}</div><div class="small">${rs.length} rekod • Purata ${rs.length?purata(rs.map(r=>Number(r.NILAI)||0)).toFixed(2):"-"} ${esc(x.UNIT)}</div></div>
-      <div class="right"><span class="badge">TERBAIK ${b!==null?b+" "+x.UNIT:"-"}</span></div></div>
+      <div><div class="nm">${esc(n)}</div><div class="small">${rs.length} rekod • Purata ${rs.length?fmtNilai(purata(rs.map(r=>Number(r.NILAI)||0)),x):"-"}</div></div>
+      <div class="right"><span class="badge">TERBAIK ${b!==null?fmtNilai(b,x):"-"}</span></div></div>
       ${rs.slice(0,8).map(r=>`<div class="sub">• ${esc(fmtTarikh(r.TARIKH))} ${esc(fmtMasa(r.MASA))} — <b>${esc(r.KEPUTUSAN)}</b></div>`).join("")||'<div class="sub">Tiada rekod</div>'}
     </div>`;
   }).join("")||`<div class="card small">Atlet ini belum dimasukkan ke mana-mana acara.</div>`}`;
@@ -999,7 +1039,7 @@ function vDashboard(){
           <div class="rank ${i===0?"g1":i===1?"g2":i===2?"g3":""}">${i+1}</div>
           <img class="av" src="${avatar(a)}" ${avErr(a)}/>
           <div style="flex:1"><div class="nm">${esc(r.nama)}</div><div class="sub">${esc(r.kategori)} • ${esc(r.sekolah)} • ${r.n} rekod</div></div>
-          <div class="right"><div class="nm" style="color:var(--p2)">${r.purata.toFixed(2)}</div><div class="sub">purata ${esc(info.UNIT)}</div><div class="sub">terbaik ${r.terbaik.toFixed(2)}</div></div>
+          <div class="right"><div class="nm" style="color:var(--p2)">${fmtNilai(r.purata,info)}</div><div class="sub">purata</div><div class="sub">terbaik ${fmtNilai(r.terbaik,info)}</div></div>
         </div>`;
       }).join("");
   }).join("");
@@ -1056,9 +1096,9 @@ function kiraRanking(namaAcara){
 /* Rekod peribadi kejohanan lepas — dipaparkan merah */
 function selRP(r){ return r.rekodPeribadi?`<span class="rp">${esc(r.rekodPeribadi)}</span>`:`<span style="color:#98a2b3">—</span>`; }
 /* 3 rekod terbaik sepanjang tempoh latihan */
-function selTop3(r,unit){
+function selTop3(r,unit,jenis){
   if(!r.top3||!r.top3.length) return `<span style="color:#98a2b3">—</span>`;
-  return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${t.nilai.toFixed(2)} ${esc(unit||"")}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
+  return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${fmtNilaiUnit(t.nilai,jenis||(String(unit).toLowerCase()==="saat"?"MASA":"JARAK"),unit)}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
 }
 
 function gayaLaporan(){
@@ -1145,7 +1185,7 @@ function cetakLaporan(mod){
         isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet</h3>
         <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
-          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT)}</td><td class="num">${r.terbaik.toFixed(2)} ${esc(info.UNIT||"")}</td><td class="num">${r.n}</td></tr>`;
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
         });
         isi+=`</tbody></table>`;
       });
@@ -1162,7 +1202,7 @@ function cetakLaporan(mod){
       ikutKat[k].forEach(r=>{
         const kat=semua[k]=semua[k]||{};
         (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
-          acara:n,unit:info.UNIT||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
+          acara:n,unit:info.UNIT||"",jenis:info.JENIS||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
           rekodPeribadi:r.rekodPeribadi,top3:r.top3
         });
       });
@@ -1178,7 +1218,7 @@ function cetakLaporan(mod){
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
       <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit)}</td><td class="num">${b.terbaik.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
