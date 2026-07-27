@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyBuBq83Ynjw5CG5yLzUnc0g3fY1DnQTclF7s5TAcURqsU5Ba7Y2xbHCycm8VPJkF6-Gg/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyJ0g2KvtyuuHh9b9_AKQwrO9RV0xIWz38ojhZF1zmeMdz89-oapHE_gyk6CHYu78fr1A/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -816,6 +816,8 @@ async function simpanR(n,id){
   const btn=$("#btnR"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
   const a=atletById(id)||{}, info=acaraInfo(n);
   const mentah=$("#rv").value;
+  const catatan=($("#rc")&&$("#rc").value.trim())||"";
+  const tarikh=($("#rt")&&$("#rt").value)||today();
   const nilai=info.JENIS==="MASA"?huraiMasa(mentah):parseFloat(String(mentah).replace(",","."));
   if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 15.45 atau 1:15.45)":"Masukkan keputusan yang sah"); }
   try{
