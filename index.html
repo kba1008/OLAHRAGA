@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#7c3aed"/>
+<link rel="manifest" href="manifest.json"/>
+<title>Latihan Pusat Olahraga</title>
+<style>
+:root{
+  --bg1:#0b1220;--bg2:#1a1148;--vio:#7c3aed;--cya:#06b6d4;--pnk:#ec4899;--lim:#a3e635;--amb:#f59e0b;
+  --card:rgba(255,255,255,.08);--brd:rgba(255,255,255,.14);--txt:#f8fafc;--mut:#a5b4fc;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--txt);
+  background:radial-gradient(1200px 800px at 10% -10%,#4c1d95 0,transparent 60%),
+             radial-gradient(900px 700px at 100% 10%,#0891b2 0,transparent 55%),
+             radial-gradient(900px 900px at 50% 110%,#be185d 0,transparent 55%),
+             linear-gradient(180deg,var(--bg1),#050814);min-height:100vh}
+.app{max-width:520px;margin:0 auto;padding:16px 14px 110px;position:relative}
+.hero{padding:22px 18px;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4 60%,#22d3ee);
+  box-shadow:0 25px 55px -20px rgba(124,58,237,.7),inset 0 1px 0 rgba(255,255,255,.35);position:relative;overflow:hidden}
+.hero h1{margin:0;font-size:22px;font-weight:900;letter-spacing:.3px;text-shadow:0 3px 0 rgba(0,0,0,.15)}
+.hero p{margin:6px 0 0;opacity:.9;font-size:13px}
+.hero::after{content:"";position:absolute;inset:auto -30px -30px auto;width:180px;height:180px;background:radial-gradient(circle,#fff 0,transparent 60%);opacity:.18}
+.card{background:var(--card);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--brd);
+  border-radius:22px;padding:16px;margin-top:14px;box-shadow:0 20px 40px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08)}
+h2{font-size:16px;margin:0 0 10px;letter-spacing:.3px}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+input,select,textarea{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--brd);background:rgba(0,0,0,.25);color:#fff;font-size:15px;outline:none}
+input:focus,select:focus{border-color:var(--cya);box-shadow:0 0 0 3px rgba(6,182,212,.25)}
+button,.btn{cursor:pointer;border:0;padding:13px 16px;border-radius:14px;font-weight:800;font-size:15px;color:#fff;
+  background:linear-gradient(135deg,var(--vio),var(--cya));box-shadow:0 12px 24px -10px rgba(124,58,237,.7),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .1s ease}
+button:active,.btn:active{transform:translateY(1px) scale(.99)}
+.btn-alt{background:linear-gradient(135deg,#ec4899,#f59e0b)}
+.btn-ghost{background:rgba(255,255,255,.06);border:1px solid var(--brd)}
+.btn-sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.tile{position:relative;padding:18px 12px;border-radius:20px;text-align:center;background:linear-gradient(160deg,#111827,#1f2937);
+  border:1px solid var(--brd);box-shadow:0 20px 30px -15px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.06);transition:transform .15s;cursor:pointer}
+.tile:hover{transform:translateY(-2px)}
+.tile .ico{font-size:34px;filter:drop-shadow(0 6px 6px rgba(0,0,0,.4))}
+.tile .lbl{font-weight:800;margin-top:6px;font-size:13px;letter-spacing:.3px}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.4px}
+.pill.g{background:linear-gradient(135deg,#22c55e,#84cc16)}
+.pill.p{background:linear-gradient(135deg,#ec4899,#f43f5e)}
+.pill.b{background:linear-gradient(135deg,#3b82f6,#06b6d4)}
+.list{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid var(--brd)}
+.avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#334155,#0f172a);display:flex;align-items:center;justify-content:center;font-weight:900;overflow:hidden;flex:0 0 auto;box-shadow:inset 0 0 0 2px rgba(255,255,255,.1);font-size:22px}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.item .nm{font-weight:700;font-size:14px}
+.item .sub{font-size:11px;color:var(--mut)}
+.tabs{display:flex;gap:6px;margin-top:14px;overflow:auto;padding-bottom:6px}
+.tabs button{padding:8px 12px;font-size:12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--brd);white-space:nowrap;font-weight:700}
+.tabs button.active{background:linear-gradient(135deg,var(--vio),var(--cya))}
+.nav{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);width:calc(100% - 28px);max-width:492px;
+  background:rgba(15,23,42,.85);backdrop-filter:blur(20px);border:1px solid var(--brd);border-radius:22px;padding:10px;display:flex;justify-content:space-around;z-index:20;box-shadow:0 20px 40px -10px rgba(0,0,0,.7)}
+.nav button{background:transparent;color:var(--mut);font-size:11px;font-weight:700;padding:6px 10px;box-shadow:none;display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav button.active{color:#fff}
+.nav .ic{font-size:22px}
+.rank{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--brd);margin-top:8px}
+.rank .no{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;background:linear-gradient(135deg,#7c3aed,#06b6d4)}
+.rank .no.g{background:linear-gradient(135deg,#f59e0b,#facc15);color:#1a1a1a}
+.rank .no.s{background:linear-gradient(135deg,#94a3b8,#e2e8f0);color:#1a1a1a}
+.rank .no.b{background:linear-gradient(135deg,#b45309,#f97316)}
+.hide{display:none!important}
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(15,23,42,.95);border:1px solid var(--brd);color:#fff;padding:10px 16px;border-radius:14px;font-size:13px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}
+.badge{padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.1);font-size:10px;color:var(--mut)}
+details{border:1px solid var(--brd);border-radius:16px;padding:10px 14px;margin-top:10px;background:rgba(255,255,255,.04)}
+summary{cursor:pointer;font-weight:800;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px}
+summary::-webkit-details-marker{display:none}
+.small{font-size:12px;color:var(--mut)}
+.hero-cta{margin-top:14px;display:flex;gap:8px}
+.hero-cta button{flex:1;padding:10px}
+.you{display:flex;align-items:center;gap:10px;margin-top:12px;background:rgba(0,0,0,.25);padding:10px;border-radius:14px}
+.you .a{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#06b6d4);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px}
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div class="app" id="app"></div>
+<nav class="nav hide" id="nav">
+  <button data-tab="home"><span class="ic">🏠</span>Utama</button>
+  <button data-tab="hadir"><span class="ic">✅</span>Hadir</button>
+  <button data-tab="rekod"><span class="ic">📊</span>Rekod</button>
+  <button data-tab="dash"><span class="ic">🏆</span>Dashboard</button>
+  <button data-tab="profil"><span class="ic">👤</span>Profil</button>
+</nav>
+
+<script>
+/* ============ KONFIG ============ */
+const API_URL = ""; // GANTI dengan Web App URL dari Apps Script anda. Kosong = mod luar talian.
+const MASTER_PW = "101010";
+const ACARA_LIST = ["100 M","200 M","400 M","800 M","1500 M","LOMPAT JAUH","LOMPAT TINGGI","LONTAR PELURU","LEMPAR CAKERA","REJAM LEMBING"];
+const SEED_ATHLETES = [{"nama":"MUHAMMAD FAWWAZ ASYRAF BIN MOHD FADGLI","jantina":"L","kategori":"BPL12","sekolah":"SK RELAU","ic":"","acara":{"100 M":"13.94S (RB)","200 M":"30.25S (RB)","LOMPAT JAUH":"3.96M (RB)"}},{"nama":"MUHAMMAD FAREED AIMIN BIN MOHD SHAHRIL","jantina":"L","kategori":"BPL12","sekolah":"SK SERI LINDUNGAN RAJA","ic":"","acara":{"100 M":"14.34S","200 M":"31.34S","LOMPAT JAUH":"3.89M"}},{"nama":"MUHAMAD FARHAN BIN MUHAMAD RIZUAN","jantina":"L","kategori":"BPL12","sekolah":"SK SELAMA","ic":"","acara":{"100 M":"14.53S","200 M":"31.90S"}},{"nama":"MUHAMMAD AIDIL MIFZAL BIN MOHAMMAD SABRI","jantina":"L","kategori":"BPL12","sekolah":"SK SERI LINDUNGAN RAJA","ic":"","acara":{"100 M":"14.57S","200 M":"32.47S"}},{"nama":"MUHAMMAD RAYYAN NAUFAL BIN HASBUDDIN","jantina":"L","kategori":"BPL10","sekolah":"SK TUNKU ABDUL MALIK","ic":"","acara":{"100 M":"14.90S","200 M":"33.63S"}},{"nama":"NURUL ZAHIRAH BINTI MOHD NAJIB","jantina":"P","kategori":"BPP10","sekolah":"SK PERMATANG TOK DIK","ic":"","acara":{"100 M":"17.22S (RB)","200 M":"37.53S (RB)","LOMPAT JAUH":"3.02M"}},{"nama":"NOR SYAFINI BINTI MOHD ZUL","jantina":"P","kategori":"BPP12","sekolah":"SK SERI LINDUNGAN RAJA","ic":"","acara":{"100 M":"17.25S","LONTAR PELURU":"4.79M"}},{"nama":"QASEH NURASYIKIN BINTI MOHAMAD AKMAL","jantina":"P","kategori":"BPP12","sekolah":"SK AIR MERAH","ic":"","acara":{"100 M":"17.43S","200 M":"40.00S"}},{"nama":"NUR SYAFIQA HUMAIRAH BINTI ZULKIFFLI","jantina":"P","kategori":"BPP10","sekolah":"SK LABU BESAR","ic":"","acara":{"100 M":"17.56S"}},{"nama":"NUR AINIS AWANI BINTI RUSILIN","jantina":"P","kategori":"BPP12","sekolah":"SK PERMATANG TOK DIK","ic":"","acara":{"100 M":"18.06S","200 M":"42.28S","LOMPAT JAUH":"3.08M (RB)"}},{"nama":"NURHIDAYAH RAISHA BINTI MOHD HASRUL","jantina":"P","kategori":"BPP12","sekolah":"SK PERMATANG TOK DIK","ic":"","acara":{"100 M":"18.40s","200 M":"39.19S"}},{"nama":"AMMAR AMSYAR BIN AZMI","jantina":"L","kategori":"BPL15","sekolah":"SMK PADANG SERAI","ic":"","acara":{"100 M":"12.79S","200 M":"26.75S","LOMPAT JAUH":"4.63M"}},{"nama":"MUHAMMAD AFIF AKMAL BIN ZAHARI","jantina":"L","kategori":"BPL15","sekolah":"SMK SELAMA","ic":"","acara":{"100 M":"13.19S","LOMPAT JAUH":"4.56M"}},{"nama":"ZULFAQAR SYARAFAT BIN MOHD ZULKIFLI WONG","jantina":"L","kategori":"BPL15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"13.28S","200 M":"28.90S","400 M":"70.09S"}},{"nama":"MUHAMMAD HAZIQ SAFWAN BIN MOHD RAMLI","jantina":"L","kategori":"BPL15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"13.40S","200 M":"28.95S"}},{"nama":"MUHAMMAD HAMIM SAIF BIN MOHD IRWAN HAFIFFY","jantina":"L","kategori":"BPL15","sekolah":"SMK SERDANG BARU","ic":"","acara":{"100 M":"13.42S","LOMPAT JAUH":"4.35M"}},{"nama":"NURIN NADHILAH AQMAR BINTI ZULKORNAIN","jantina":"P","kategori":"BPP15","sekolah":"SMK LUBOK BUNTAR","ic":"","acara":{"100 M":"15.78S","200 M":"33.63S"}},{"nama":"NURUL ZAFIRA BINTI ZAIDI","jantina":"P","kategori":"BPP15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"15.84S","200 M":"34.94S","LOMPAT JAUH":"2.65M"}},{"nama":"NURUL SYAFIQAH BINTI MOHAMAD NASER","jantina":"P","kategori":"BPP15","sekolah":"SMK PADANG SERAI","ic":"","acara":{"100 M":"17.37S"}},{"nama":"NUR AMIE NAJWA BINTI MOHD ASHRAH","jantina":"P","kategori":"BPP15","sekolah":"SMK SUNGAI KARANGAN","ic":"","acara":{"100 M":"17.40S"}},{"nama":"NUR ADRIANNA AMANDA BINTI ABDUL AZIZ","jantina":"P","kategori":"BPP15","sekolah":"SMK AIR MERAH","ic":"","acara":{"100 M":"17.57S"}},{"nama":"MUHAMMAD HAIKAL DANISH BIN NAZRI","jantina":"L","kategori":"BPL19","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"12.50S","200 M":"26.62S","400 M":"64.81S"}},{"nama":"MOHAMAD HAKIMI BIN FAUZAN","jantina":"L","kategori":"BPL19","sekolah":"SMK PADANG SERAI","ic":"","acara":{"100 M":"12.81S","200 M":"27.21S"}},{"nama":"MOHAMMAD FIRDAUS BIN MAAULIDOL MOHAMAD","jantina":"L","kategori":"BPL19","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"13.06S","200 M":"27.81S"}},{"nama":"MUHAMMAD ADAM MUKHRIZ BIN MAZLAN","jantina":"L","kategori":"BPL19","sekolah":"SMK PADANG SERAI","ic":"","acara":{"100 M":"13.69S","200 M":"28.07S"}},{"nama":"MUHAMMAD AMIN BIN ABDULLAH","jantina":"L","kategori":"BPL19","sekolah":"SMK AIR MERAH","ic":"","acara":{"100 M":"14.81S"}},{"nama":"MOHD FARID BIN AZMI","jantina":"L","kategori":"BPL19","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"100 M":"11.79S"}},{"nama":"NUR AININ SOFIYA BINTI MUHAMMED NIZAM","jantina":"P","kategori":"BPP19","sekolah":"SMK PADANG SERAI","ic":"","acara":{"100 M":"15.03S","200 M":"32.66S","400 M":"81.32S"}},{"nama":"NAIMAH BINTI MOHD RIZAL","jantina":"P","kategori":"BPP19","sekolah":"SMK SUNGAI KARANGAN","ic":"","acara":{"100 M":"15.72S","200 M":"35.56S","LOMPAT JAUH":"2.82M"}},{"nama":"NORLIYANA BALQIS BINTI MOHD SAIFOL NIZAM","jantina":"P","kategori":"BPP19","sekolah":"SMK SELAMA","ic":"","acara":{"100 M":"18.10S","200 M":"42.00S","400 M":"110.13S"}},{"nama":"AINUR ALEEYA BINTI ANUAR","jantina":"P","kategori":"BPP19","sekolah":"SMK LUNAS","ic":"","acara":{"100 M":"18.66S","200 M":"40.59S","LOMPAT JAUH":"2.75M"}},{"nama":"DHIVYAN A/L SURIAMURTHY","jantina":"L","kategori":"BPL12","sekolah":"SJKT LADANG SUNGAI ULAR","ic":"","acara":{"200 M":"33.50S"}},{"nama":"MOHAMAD DANNY ISKANDAR BIN ABDULLAH","jantina":"L","kategori":"BPL15","sekolah":"SMK LUNAS","ic":"","acara":{"200 M":"28.68S"}},{"nama":"MOHAMAD QALIFF MUSTAQIM BIN MOHAMAD KHAIRUUL","jantina":"L","kategori":"BPL15","sekolah":"SMK JUNJUNG","ic":"","acara":{"200 M":"28.88S","400 M":"67.56S","800 M":"02:52.5"}},{"nama":"MUHAMMAD KHAIRUL MUHAIMIN BIN ZULKIPLI","jantina":"L","kategori":"BPL19","sekolah":"SMK LABU BESAR","ic":"","acara":{"200 M":"28.10S","LOMPAT JAUH":"5.07M"}},{"nama":"ADIB MUQRI JIBRIL BIN MOHD RAMLI","jantina":"L","kategori":"BPL15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"400 M":"66.22S"}},{"nama":"MUHAMMAD AKMAL IRFAN BIN AHMAD FITRI","jantina":"L","kategori":"BPL15","sekolah":"SMK SUNGAI KARANGAN","ic":"","acara":{"400 M":"71.85S","800 M":"03:01.3"}},{"nama":"ANISSYA BALQIS BINTI MOHD SYUKRI","jantina":"P","kategori":"BPP15","sekolah":"SMK PADANG SERAI","ic":"","acara":{"400 M":"85.06S","800 M":"03:33.6","LOMPAT JAUH":"3.32M"}},{"nama":"NUR AIRISH SOFFIYA BINTI MOHAMMAD SABRI","jantina":"P","kategori":"BPP15","sekolah":"SMK LUBOK BUNTAR","ic":"","acara":{"400 M":"89.06S","800 M":"03:50.2","LOMPAT JAUH":"2.56M"}},{"nama":"MUHAMMAD ADAM BIN MUHAMAD ZAMRI","jantina":"L","kategori":"BPL19","sekolah":"SMK LABU BESAR","ic":"","acara":{"400 M":"60.25S","800 M":"02:25.8","1500 M":"06:14.8"}},{"nama":"MUHAMMAD SYUHAIL AMNI BIN MOHD SHAH RETDZUWAN","jantina":"L","kategori":"BPL19","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"400 M":"65.84S","LOMPAT JAUH":"4.99M"}},{"nama":"NUR ANIS SYAHIRAH BINTI ISMAIL","jantina":"P","kategori":"BPP19","sekolah":"SMK SULTAN AHMAD TAJUDDIN","ic":"","acara":{"400 M":"95.53S","800 M":"04:43.6"}},{"nama":"MUHAMMAD RAY'YAN TASNIM BIN ABDUL MALIK","jantina":"L","kategori":"BPL15","sekolah":"SMK PADANG SERAI","ic":"","acara":{"800 M":"03:06.0","1500 M":"06:17.6"}},{"nama":"MUHAMMAD ILYAS BIN SUHAIME","jantina":"L","kategori":"BPL15","sekolah":"SMK PADANG SERAI","ic":"","acara":{"800 M":"03:15.0","1500 M":"06:24.9"}},{"nama":"MOHAMAD FAZLAN BIN R0SEDI","jantina":"L","kategori":"BPL19","sekolah":"SMK SUNGAI KARANGAN","ic":"","acara":{"800 M":"02:38.3"}},{"nama":"NIK MUHAMMAD SYAMIM AL-ISLAM BIN NIK SHAMSUL AFKAR","jantina":"L","kategori":"BPL19","sekolah":"SMK AIR MERAH","ic":"","acara":{"800 M":"02:39.9","1500 M":"06:31.8"}},{"nama":"AHMAD AFFNAN BIN AHMAD AFANDI","jantina":"L","kategori":"BPL15","sekolah":"SMK TAMAN MUTIARA","ic":"","acara":{"1500 M":"06:14.9"}},{"nama":"MUHAMMAD FAKHRUDDIN ATHAR BIN FAUDZI","jantina":"L","kategori":"BPL15","sekolah":"SMK SERDANG BARU","ic":"","acara":{"LOMPAT JAUH":"4.68M","LOMPAT TINGGI":"1.46M"}},{"nama":"JOASH DANIEL SHAN A/L SHANMUGAN","jantina":"L","kategori":"BPL19","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"LOMPAT JAUH":"5.27M","LOMPAT TINGGI":"1.64M (RB)","LONTAR PELURU":"9.59M"}},{"nama":"MUHAMMAD SHARIZAN BIN MAHADZIR","jantina":"L","kategori":"BPL19","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"LOMPAT TINGGI":"1.60M"}},{"nama":"MOHAMAD HAZIM ZAFRAN BIN MAT YAKI","jantina":"L","kategori":"BPL12","sekolah":"SK SELAMA","ic":"","acara":{"LONTAR PELURU":"8.83M (RB)"}},{"nama":"MUHAMMAD ZAHIN AFIQ BIN MUHAMAD AZMAN","jantina":"L","kategori":"BPL12","sekolah":"SK TUNKU ABDUL MALIK","ic":"","acara":{"LONTAR PELURU":"7.12M"}},{"nama":"AYLA KHADEEJA BINTI MOHD ROSTAM","jantina":"P","kategori":"BPP12","sekolah":"SK SELAMA","ic":"","acara":{"LONTAR PELURU":"4.93M"}},{"nama":"MOHAMAD WAN IQBAL BIN MOHD ZAMRI","jantina":"L","kategori":"BPL15","sekolah":"SMK SERDANG BARU","ic":"","acara":{"LONTAR PELURU":"8.28M","REJAM LEMBING":"21.83M"}},{"nama":"MUHAMMAD IZDIYAD SUFFI BIN ABDUL HAKIM","jantina":"L","kategori":"BPL15","sekolah":"SMK TAMAN KENARI","ic":"","acara":{"LONTAR PELURU":"7.74M","LEMPAR CAKERA":"21.19M"}},{"nama":"MUHAMMAD SYAH HAIRIS ISKANDAR BIN ABDULLAH","jantina":"L","kategori":"BPL15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"LONTAR PELURU":"7.42M","LEMPAR CAKERA":"21.23M (RB)","REJAM LEMBING":"21.62M"}},{"nama":"ZUREENA BINTI ZUZAIRI","jantina":"P","kategori":"BPP15","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"LONTAR PELURU":"7.02M (RB)"}},{"nama":"NURUL AINUL MARDHIAH BINTI SHUKRI","jantina":"P","kategori":"BPP15","sekolah":"SMK LUNAS","ic":"","acara":{"LONTAR PELURU":"6.52M","LEMPAR CAKERA":"14.77M (RB)"}},{"nama":"NUR FATIN NISA BINTI MOHD NASRUL","jantina":"P","kategori":"BPP15","sekolah":"SMK SUNGAI KOB","ic":"","acara":{"LONTAR PELURU":"5.54M","LEMPAR CAKERA":"11.96M","REJAM LEMBING":"11.50M"}},{"nama":"YUS ABDULLAH BIN MOHAMAD YUSRI","jantina":"L","kategori":"BPL19","sekolah":"SMK LABU BESAR","ic":"","acara":{"LONTAR PELURU":"9.60M (RB)","LEMPAR CAKERA":"25.51M","REJAM LEMBING":"25.91M"}},{"nama":"MUHAMMAD FAZLI BIN ISMAIL","jantina":"L","kategori":"BPL19","sekolah":"SMK LABU BESAR","ic":"","acara":{"LONTAR PELURU":"9.24M","REJAM LEMBING":"27.75M"}},{"nama":"MUHAMAD ZULHUZAIMI BIN ZAIDI","jantina":"L","kategori":"BPL19","sekolah":"SMK SUNGAI KARANGAN","ic":"","acara":{"LONTAR PELURU":"8.03M","LEMPAR CAKERA":"25.20M"}},{"nama":"MUHAMMAD DANIEL ERRY HAKIM BIN ROSMADI","jantina":"L","kategori":"BPL19","sekolah":"SMK PADANG SERAI","ic":"","acara":{"LONTAR PELURU":"8.12M","LEMPAR CAKERA":"23.09M","REJAM LEMBING":"30.80M"}},{"nama":"NUR AUFA DANIA BINTI ZAIDON","jantina":"P","kategori":"BPP19","sekolah":"SMK SERDANG BARU","ic":"","acara":{"LONTAR PELURU":"5.06M","LEMPAR CAKERA":"11.89M","REJAM LEMBING":"8.84M"}},{"nama":"SERI KENCANA BINTI SHABLI","jantina":"P","kategori":"BPP19","sekolah":"SMK AIR MERAH","ic":"","acara":{"LONTAR PELURU":"4.76M","LEMPAR CAKERA":"14.00M"}},{"nama":"SITI ZAININA HUSNA BINTI MOHD ZAINI","jantina":"P","kategori":"BPP15","sekolah":"SMK LUBOK BUNTAR","ic":"","acara":{"LEMPAR CAKERA":"13.57M","REJAM LEMBING":"14.06M (RB)"}},{"nama":"MUHAMMAD YUSZAIRI ADRI BIN MD YUSRI","jantina":"L","kategori":"BPL19","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"LEMPAR CAKERA":"25.41M"}},{"nama":"AFRINA NASIRAH BINTI JAMIL NASIR","jantina":"P","kategori":"BPP19","sekolah":"SMK LUBOK BUNTAR","ic":"","acara":{"LEMPAR CAKERA":"13.71M","REJAM LEMBING":"10.89M"}},{"nama":"MUHAMMAD IKMAL BIN KHAIRUL AZHAR","jantina":"L","kategori":"BPL15","sekolah":"SMK SERDANG BARU","ic":"","acara":{"REJAM LEMBING":"26.52M"}},{"nama":"NURUL ALISHA HUSNA BINTI MAZLAN","jantina":"P","kategori":"BPP15","sekolah":"SMK LABU BESAR","ic":"","acara":{"REJAM LEMBING":"12.65M"}},{"nama":"MUHAMMAD KHAIRIL AZHAR BIN MOHUMAD HAMZAH","jantina":"L","kategori":"BPL19","sekolah":"SMK TAMAN SELASIH","ic":"","acara":{"REJAM LEMBING":"27.82M"}},{"nama":"MUHAMMAD DANIEAL SAIFULLAH BIN ABDUL JALIL","jantina":"L","kategori":"BLL12","sekolah":"SK LABU BESAR","ic":"","acara":{}},{"nama":"MUHAMMAD AFFAN MIRZA BIN MOHAMED NOORSYAHRUL","jantina":"L","kategori":"BDL12","sekolah":"SK TUNKU ABDUL MALIK","ic":"","acara":{}},{"nama":"NUR AINUL MARDHIAH BINTI MOHD FAUZI","jantina":"P","kategori":"BDP12","sekolah":"SK TUNKU ABDUL MALIK","ic":"","acara":{}},{"nama":"NUR AISYAH MUNAWWARAH BINTI MAZLAN","jantina":"P","kategori":"BLP12","sekolah":"SK PERMATANG TOK DIK","ic":"","acara":{}},{"nama":"NUR QHALISSHA NASSUHA BINTI ABDULLAH","jantina":"P","kategori":"BPP12","sekolah":"SK TAMAN KENARI","ic":"","acara":{}},{"nama":"SHARIFAH NUR AINUL SHIDQIA BINTI SYED MOHSIN","jantina":"P","kategori":"BPP12","sekolah":"SK PERMATANG TOK DIK","ic":"","acara":{}},{"nama":"MUHAMMAD ALIF ZAKWAN KHAN BIN MOHD KABEER KHAN","jantina":"L","kategori":"BL19L","sekolah":"SMK JUNJUNG","ic":"","acara":{}},{"nama":"MUHAMMAD AIMAN ILHAM BIN MAT ISA","jantina":"L","kategori":"BD L19","sekolah":"SMK LABU BESAR","ic":"","acara":{}}];
+
+/* ============ STORAGE ============ */
+const LS = {
+  get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
+  del:(k)=>localStorage.removeItem(k)
+};
+if(!LS.get('athletes')) LS.set('athletes', SEED_ATHLETES);
+if(!LS.get('gurus')) LS.set('gurus', []);
+if(!LS.get('records')) LS.set('records', {});
+if(!LS.get('attendance')) LS.set('attendance', {});
+if(!LS.get('coaches')) LS.set('coaches', {});
+
+let USER = LS.get('user', null);
+let TAB = 'home';
+let SUB = null;
+
+async function api(action, params){
+  if(!API_URL) return null;
+  try{
+    const url = API_URL + '?' + new URLSearchParams(Object.assign({action:action}, params||{})).toString();
+    const r = await fetch(url);
+    return await r.json();
+  }catch(e){ return null; }
+}
+
+const $ = (s,el)=>(el||document).querySelector(s);
+const $$ = (s,el)=>Array.from((el||document).querySelectorAll(s));
+const toast=(m)=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove('on'),2200)};
+const today=()=>new Date().toISOString().slice(0,10);
+const now=()=>new Date().toLocaleString('ms-MY',{hour12:false});
+const avatarFor=(a)=>{
+  if(a.foto) return '<img src="'+a.foto+'"/>';
+  return a.jantina==='P' ? '👧' : '👦';
+};
+const catPill=(k)=>{
+  const cls = (k||'').indexOf('P')>=0 ? 'p' : 'b';
+  return '<span class="pill '+cls+'">'+(k||'-')+'</span>';
+};
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function render(){
+  const app=$('#app');
+  if(!USER){ $('#nav').classList.add('hide'); app.innerHTML = viewAuth(); bind(); return; }
+  $('#nav').classList.remove('hide');
+  $$('.nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===TAB));
+  const map={home:viewHome,hadir:viewHadir,rekod:viewRekod,dash:viewDash,profil:viewProfil};
+  app.innerHTML = (map[TAB]||viewHome)();
+  bind();
+}
+
+function viewAuth(){
+  return `
+  <div class="hero">
+    <h1>🏃 Latihan Pusat Olahraga</h1>
+    <p>Sistem kehadiran & rekod prestasi altelit</p>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <button data-auth="login" class="active">Log Masuk</button>
+      <button data-auth="daftar">Daftar Baharu</button>
+    </div>
+    <div id="authbox">${authLogin()}</div>
+  </div>`;
+}
+function authLogin(){
+  return `
+    <label>Email</label><input id="li_email" type="email" autocomplete="email" placeholder="guru@sekolah.edu.my"/>
+    <label>Kata Laluan</label><input id="li_pw" type="password" autocomplete="current-password" placeholder="••••••"/>
+    <div style="height:14px"></div>
+    <button id="btnLogin">Log Masuk</button>
+    <p class="small" style="margin-top:10px">Akaun dikunci pada telefon ini selepas log masuk pertama.</p>
+  `;
+}
+function authDaftar(){
+  return `
+    <label>Nama Penuh</label><input id="r_nama"/>
+    <label>Email</label><input id="r_email" type="email"/>
+    <label>Kata Laluan</label><input id="r_pw" type="password"/>
+    <label>Jawatan Semasa Sesi Latihan</label>
+    <select id="r_jawatan">
+      <option>Jurulatih</option><option>Penyelaras</option><option>Pengurus Pasukan</option><option>Guru Iringan</option>
+    </select>
+    <label>Sekolah</label><input id="r_sekolah"/>
+    <label>No Telefon</label><input id="r_tel"/>
+    <label>Master Admin Password <span class="badge">pilihan</span></label>
+    <input id="r_mpw" type="password" placeholder="Kosongkan jika bukan admin"/>
+    <div style="height:14px"></div>
+    <button id="btnDaftar">Daftar & Log Masuk</button>
+  `;
+}
+
+function viewHome(){
+  const t=today();
+  const hadirCount=(LS.get('attendance',{})[t]||[]).length;
+  const totalAthletes=LS.get('athletes').length;
+  return `
+  <div class="hero">
+    <h1>Selamat Kembali,</h1>
+    <p style="font-size:18px;font-weight:800;margin-top:2px">${esc(USER.nama)}</p>
+    <p>${esc(USER.jawatan)} • ${esc(USER.sekolah)}</p>
+    <div class="hero-cta">
+      <button class="btn-ghost" data-go="profil">Profil Saya</button>
+      <button class="btn-alt" id="btnLogout">Log Keluar</button>
+    </div>
+  </div>
+  <div class="grid3">
+    <div class="tile" data-go="hadir"><div class="ico">✅</div><div class="lbl">Kehadiran</div><div class="small" style="margin-top:4px">${hadirCount} hari ini</div></div>
+    <div class="tile" data-go="rekod"><div class="ico">📊</div><div class="lbl">Rekod Latihan</div><div class="small" style="margin-top:4px">${ACARA_LIST.length} acara</div></div>
+    <div class="tile" data-go="dash"><div class="ico">🏆</div><div class="lbl">Dashboard</div><div class="small" style="margin-top:4px">Ranking</div></div>
+  </div>
+  <div class="card">
+    <h2>📌 Info Pantas</h2>
+    <div class="small">Jumlah altelit: <b style="color:#fff">${totalAthletes}</b></div>
+    <div class="small">Tarikh hari ini: <b style="color:#fff">${t}</b></div>
+    <div class="small">Peranan: ${USER.role==='MASTER_ADMIN'?'<span class="pill g">MASTER ADMIN</span>':'<span class="pill b">JURULATIH</span>'}</div>
+  </div>`;
+}
+
+function viewHadir(){
+  const t=today();
+  const hadir=(LS.get('attendance',{})[t]||[]);
+  const set={}; hadir.forEach(h=>set[h.nama]=h);
+  const q=(SUB&&SUB.q)||'';
+  const list=LS.get('athletes').filter(a=>!q||a.nama.toLowerCase().indexOf(q.toLowerCase())>=0||(a.sekolah||'').toLowerCase().indexOf(q.toLowerCase())>=0);
+  return `
+  <div class="hero"><h1>✅ Kehadiran</h1><p>Sesi ${t}</p></div>
+  <div class="card">
+    <div class="row">
+      <input id="q" placeholder="🔍 Cari nama / sekolah..." value="${esc(q)}"/>
+      ${USER.role==='MASTER_ADMIN'?'<button class="btn-alt btn-sm" id="btnAdd" style="flex:0 0 auto">+ Altelit</button>':''}
+    </div>
+    <div class="small" style="margin-top:8px">Hadir hari ini: <b style="color:#fff">${hadir.length}</b> / ${LS.get('athletes').length}</div>
+    <div class="list">
+      ${list.map(a=>`
+        <div class="item">
+          <div class="avatar">${avatarFor(a)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="nm">${esc(a.nama)}</div>
+            <div class="sub">${catPill(a.kategori)} • ${esc(a.sekolah)}</div>
+            ${set[a.nama]?`<div class="sub">🕒 ${esc(set[a.nama].masa)} • oleh ${esc(set[a.nama].by)}</div>`:''}
+          </div>
+          <button class="btn-sm ${set[a.nama]?'':'btn-ghost'}" data-hadir="${encodeURIComponent(a.nama)}">${set[a.nama]?'✓ Hadir':'Tanda'}</button>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function viewRekod(){
+  if(SUB&&SUB.acara) return viewRekodAcara(SUB.acara);
+  return `
+  <div class="hero"><h1>📊 Rekod Latihan</h1><p>Pilih acara untuk lihat/tambah rekod</p></div>
+  <div class="card">
+    <div class="list">
+      ${ACARA_LIST.map(a=>{
+        const cnt=(LS.get('records',{})[a]||[]).length;
+        const na=LS.get('athletes').filter(x=>x.acara&&x.acara[a]!==undefined).length;
+        return `<div class="item" data-acara="${esc(a)}" style="cursor:pointer">
+          <div class="avatar" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">🏅</div>
+          <div style="flex:1"><div class="nm">${esc(a)}</div><div class="sub">${na} altelit • ${cnt} rekod</div></div>
+          <span class="badge">➜</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+function viewRekodAcara(acara){
+  const athletes = LS.get('athletes').filter(a=>a.acara && a.acara[acara]!==undefined);
+  const records = (LS.get('records',{})[acara]||[]);
+  const coaches = (LS.get('coaches',{})[acara]||[]);
+  const isAdmin = USER.role==='MASTER_ADMIN';
+  const canRecord = isAdmin || coaches.length===0 || coaches.indexOf(USER.email)>=0;
+  return `
+  <div class="hero"><h1>🏅 ${esc(acara)}</h1><p>${athletes.length} altelit • ${records.length} rekod</p>
+    <div class="hero-cta">
+      <button class="btn-ghost" data-back>← Kembali</button>
+      ${isAdmin?'<button class="btn-alt" id="btnCoach">👨‍🏫 Lantik Jurulatih</button>':''}
+    </div>
+  </div>
+  ${!canRecord?'<div class="card"><b>⚠️ Anda bukan jurulatih untuk acara ini.</b><div class="small">Hanya jurulatih dilantik boleh masukkan rekod.</div></div>':''}
+  ${coaches.length?`<div class="card"><div class="small">Jurulatih dilantik (${coaches.length}/10):</div><div style="margin-top:6px">${coaches.map(c=>`<span class="badge" style="margin-right:4px">${esc(c)}</span>`).join('')}</div></div>`:''}
+  <div class="card">
+    <h2>Altelit Acara Ini</h2>
+    <div class="list">
+      ${athletes.map(a=>{
+        const t=today();
+        const hadir=(LS.get('attendance',{})[t]||[]).some(h=>h.nama===a.nama);
+        const nid='rk_'+Math.abs(hashCode(a.nama));
+        const hist=records.filter(r=>r.nama===a.nama).slice().reverse();
+        return `<details>
+          <summary>
+            <span style="display:flex;align-items:center;gap:10px;min-width:0"><span class="avatar" style="width:36px;height:36px;font-size:18px">${avatarFor(a)}</span>
+              <span style="min-width:0"><div class="nm">${esc(a.nama)}</div><div class="sub">${catPill(a.kategori)} • RB: ${esc(a.acara[acara]||'-')}</div></span></span>
+            <span class="badge">${hist.length}</span>
+          </summary>
+          <div style="margin-top:10px">
+            <div class="small">Sekolah: ${esc(a.sekolah)}</div>
+            <div class="small" style="margin-top:6px">Rekod peribadi (semua acara):</div>
+            ${Object.entries(a.acara||{}).map(([k,v])=>`<div class="small">• <b style="color:#fff">${esc(k)}</b>: ${esc(v)}</div>`).join('')}
+            ${canRecord?`
+              <div class="row" style="margin-top:10px">
+                <input placeholder="cth: 13.24s / 4.02m" id="${nid}"/>
+                <button class="btn-sm" data-save="${encodeURIComponent(a.nama)}" data-nid="${nid}" ${hadir?'':'disabled style="opacity:.4"'}>${hadir?'💾 Simpan':'⛔ Belum hadir'}</button>
+              </div>`:''}
+            <div style="margin-top:10px" class="small">History rekod:</div>
+            <div class="list">
+              ${hist.length?hist.slice(0,15).map(r=>`
+                <div class="item" style="padding:8px">
+                  <div style="flex:1"><div class="nm" style="font-size:14px">${esc(r.rekod)}</div><div class="sub">${esc(r.masa)} • oleh ${esc(r.by)}</div></div>
+                </div>`).join(''):'<div class="small">Tiada rekod lagi</div>'}
+            </div>
+          </div>
+        </details>`;
+      }).join('') || '<div class="small">Tiada altelit dalam acara ini</div>'}
+    </div>
+  </div>`;
+}
+
+function hashCode(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0}return h}
+
+function viewDash(){
+  const acara = (SUB&&SUB.acara) || ACARA_LIST[0];
+  const isTime = /M$/.test(acara);
+  const records = (LS.get('records',{})[acara]||[]);
+  const agg={};
+  records.forEach(r=>{
+    const m=String(r.rekod).match(/[0-9]+(?:\.[0-9]+)?/); if(!m)return;
+    const v=parseFloat(m[0]);
+    if(!agg[r.nama]) agg[r.nama]={n:0,sum:0,sekolah:r.sekolah,kategori:r.kategori,best:v};
+    agg[r.nama].n++; agg[r.nama].sum+=v;
+    agg[r.nama].best = isTime? Math.min(agg[r.nama].best,v):Math.max(agg[r.nama].best,v);
+  });
+  const rows = Object.keys(agg).map(nama=>{const x=agg[nama];return {nama:nama,sekolah:x.sekolah,kategori:x.kategori,best:x.best,purata:x.sum/x.n,n:x.n}})
+    .sort((a,b)=>isTime?a.purata-b.purata:b.purata-a.purata);
+  return `
+  <div class="hero"><h1>🏆 Dashboard</h1><p>Ranking mengikut purata pencapaian</p></div>
+  <div class="card">
+    <div class="tabs">
+      ${ACARA_LIST.map(a=>`<button data-dash="${esc(a)}" class="${a===acara?'active':''}">${esc(a)}</button>`).join('')}
+    </div>
+    <div class="small" style="margin-top:10px">Acara: <b style="color:#fff">${esc(acara)}</b> • ${isTime?'Masa lebih rendah = lebih baik':'Jarak lebih tinggi = lebih baik'}</div>
+    <div class="list" style="margin-top:8px">
+      ${rows.length?rows.map((r,i)=>{
+        const cls = i===0?'g':i===1?'s':i===2?'b':'';
+        return `<div class="rank">
+          <div class="no ${cls}">${i+1}</div>
+          <div style="flex:1;min-width:0"><div class="nm">${esc(r.nama)}</div><div class="sub">${catPill(r.kategori)} • ${esc(r.sekolah)}</div></div>
+          <div style="text-align:right"><div class="nm">${r.best.toFixed(2)}</div><div class="sub">purata ${r.purata.toFixed(2)} (${r.n})</div></div>
+        </div>`;
+      }).join(''):'<div class="small">Belum ada rekod untuk acara ini</div>'}
+    </div>
+  </div>`;
+}
+
+function viewProfil(){
+  if(SUB&&SUB.athlete) return viewProfilAthlete(SUB.athlete);
+  return `
+  <div class="hero"><h1>👤 Profil Saya</h1><p>${esc(USER.nama)}</p></div>
+  <div class="card">
+    <div class="you"><div class="a">${esc(USER.nama[0]||'?')}</div><div><div class="nm">${esc(USER.nama)}</div><div class="sub">${esc(USER.email)}</div></div></div>
+    <div class="small" style="margin-top:10px">Jawatan: <b style="color:#fff">${esc(USER.jawatan)}</b></div>
+    <div class="small">Sekolah: <b style="color:#fff">${esc(USER.sekolah)}</b></div>
+    <div class="small">Telefon: <b style="color:#fff">${esc(USER.telefon)}</b></div>
+    <div class="small">Peranan: ${USER.role==='MASTER_ADMIN'?'<span class="pill g">MASTER ADMIN</span>':'<span class="pill b">JURULATIH</span>'}</div>
+    <div style="height:12px"></div>
+    <button class="btn-alt" id="btnLogout">Log Keluar</button>
+  </div>
+  <div class="card">
+    <h2>🔎 Cari Profil Altelit</h2>
+    <input id="qa" placeholder="Taip nama altelit..."/>
+    <div class="list" id="qaList"></div>
+  </div>`;
+}
+function viewProfilAthlete(nm){
+  const a = LS.get('athletes').find(x=>x.nama===nm); if(!a) return '<div class="card">Tidak ditemui</div>';
+  const rec = LS.get('records',{});
+  return `
+  <div class="hero"><h1>👤 ${esc(a.nama)}</h1><p>${esc(a.sekolah)}</p>
+    <div class="hero-cta"><button class="btn-ghost" data-back>← Kembali</button></div>
+  </div>
+  <div class="card">
+    <div class="you">
+      <div class="avatar" style="width:60px;height:60px;font-size:30px">${avatarFor(a)}</div>
+      <div><div class="nm">${esc(a.nama)}</div><div class="sub">${catPill(a.kategori)} • ${a.jantina==='P'?'Perempuan':'Lelaki'}</div></div>
+    </div>
+    <div class="small" style="margin-top:10px">IC: <b style="color:#fff">${esc(a.ic||'-')}</b></div>
+    <div class="small">Sekolah: <b style="color:#fff">${esc(a.sekolah)}</b></div>
+  </div>
+  <div class="card">
+    <h2>🏅 Rekod Peribadi Mengikut Acara</h2>
+    ${Object.entries(a.acara||{}).map(([ev,rb])=>{
+      const hist=(rec[ev]||[]).filter(r=>r.nama===a.nama);
+      const nums=hist.map(r=>{const m=String(r.rekod).match(/[0-9]+(?:\.[0-9]+)?/);return m?parseFloat(m[0]):NaN}).filter(x=>!isNaN(x));
+      const isTime=/M$/.test(ev);
+      const best = nums.length? (isTime?Math.min.apply(null,nums):Math.max.apply(null,nums)).toFixed(2) : rb;
+      return `<details><summary><span>🏃 ${esc(ev)}</span><span class="badge">RB: ${esc(rb)} | Terbaik: ${esc(best)}</span></summary>
+        <div class="list" style="margin-top:8px">
+          ${hist.length?hist.slice().reverse().map(r=>`<div class="item" style="padding:8px"><div style="flex:1"><div class="nm" style="font-size:14px">${esc(r.rekod)}</div><div class="sub">${esc(r.masa)} • ${esc(r.by)}</div></div></div>`).join(''):'<div class="small">Tiada rekod latihan direkodkan</div>'}
+        </div></details>`;
+    }).join('')||'<div class="small">Tiada acara didaftarkan</div>'}
+  </div>`;
+}
+
+function bind(){
+  $$('[data-tab]').forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;SUB=null;render()});
+  $$('[data-go]').forEach(b=>b.onclick=()=>{TAB=b.dataset.go;SUB=null;render()});
+  $$('[data-back]').forEach(b=>b.onclick=()=>{SUB=null;render()});
+  const bL=$('#btnLogout'); if(bL) bL.onclick=()=>{LS.del('user');USER=null;TAB='home';SUB=null;render()};
+
+  $$('[data-auth]').forEach(b=>b.onclick=()=>{
+    $$('[data-auth]').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    $('#authbox').innerHTML = b.dataset.auth==='login'?authLogin():authDaftar(); bind();
+  });
+  const bLi=$('#btnLogin'); if(bLi) bLi.onclick=doLogin;
+  const bDa=$('#btnDaftar'); if(bDa) bDa.onclick=doDaftar;
+
+  const q=$('#q'); if(q) q.oninput=()=>{const v=q.value;SUB={q:v};render();setTimeout(()=>{const el=$('#q');if(el){el.focus();el.setSelectionRange(v.length,v.length)}},0)};
+  $$('[data-hadir]').forEach(b=>b.onclick=async()=>{
+    const nama=decodeURIComponent(b.dataset.hadir);
+    const t=today(); const att=LS.get('attendance',{}); const arr=att[t]||[];
+    const idx=arr.findIndex(x=>x.nama===nama);
+    if(idx>=0) arr.splice(idx,1); else arr.push({nama:nama,by:USER.nama,masa:now()});
+    att[t]=arr; LS.set('attendance',att);
+    api('markAttendance',{nama:nama,by:USER.nama,tarikh:t});
+    toast(idx>=0?'Kehadiran dibuang':'✅ Hadir dicatatkan'); render();
+  });
+  const bAdd=$('#btnAdd'); if(bAdd) bAdd.onclick=addAthleteFlow;
+
+  $$('[data-acara]').forEach(b=>b.onclick=()=>{SUB={acara:b.dataset.acara};render()});
+  $$('[data-save]').forEach(b=>b.onclick=async()=>{
+    const nama=decodeURIComponent(b.dataset.save); const acara=SUB.acara;
+    const inp=document.getElementById(b.dataset.nid); const val=(inp.value||'').trim();
+    if(!val){toast('Masukkan rekod');return}
+    const a=LS.get('athletes').find(x=>x.nama===nama);
+    const recs=LS.get('records',{}); recs[acara]=recs[acara]||[];
+    recs[acara].push({tarikh:today(),masa:now(),nama:nama,rekod:val,by:USER.nama,kategori:a.kategori,sekolah:a.sekolah});
+    LS.set('records',recs);
+    api('saveRecord',{acara:acara,nama:nama,rekod:val,by:USER.nama,byEmail:USER.email,byRole:USER.role,kategori:a.kategori,sekolah:a.sekolah});
+    toast('💾 Rekod disimpan'); render();
+  });
+  const bC=$('#btnCoach'); if(bC) bC.onclick=coachFlow;
+
+  $$('[data-dash]').forEach(b=>b.onclick=()=>{SUB={acara:b.dataset.dash};render()});
+
+  const qa=$('#qa'); if(qa) qa.oninput=()=>{
+    const v=qa.value.toLowerCase();
+    $('#qaList').innerHTML = LS.get('athletes').filter(a=>a.nama.toLowerCase().indexOf(v)>=0).slice(0,20).map(a=>`
+      <div class="item" data-open="${encodeURIComponent(a.nama)}" style="cursor:pointer"><div class="avatar">${avatarFor(a)}</div><div style="flex:1"><div class="nm">${esc(a.nama)}</div><div class="sub">${esc(a.sekolah)}</div></div><span class="badge">Lihat →</span></div>`).join('');
+    $$('[data-open]').forEach(el=>el.onclick=()=>{SUB={athlete:decodeURIComponent(el.dataset.open)};render()});
+  };
+}
+
+async function doLogin(){
+  const email=$('#li_email').value.trim(); const pw=$('#li_pw').value;
+  if(!email||!pw){toast('Isi email & kata laluan');return}
+  const r = await api('login',{email:email,password:pw});
+  if(r&&r.ok){ USER=r.user; LS.set('user',USER); toast('Selamat datang!'); TAB='home'; render(); return; }
+  const g = LS.get('gurus',[]).find(x=>x.email.toLowerCase()===email.toLowerCase()&&x.password===pw);
+  if(!g){toast(r&&r.error?r.error:'Email/kata laluan salah');return}
+  USER={nama:g.nama,email:g.email,jawatan:g.jawatan,sekolah:g.sekolah,telefon:g.telefon,role:g.role};
+  LS.set('user',USER); TAB='home'; render();
+}
+async function doDaftar(){
+  const nama=$('#r_nama').value.trim(),email=$('#r_email').value.trim(),pw=$('#r_pw').value,
+        jawatan=$('#r_jawatan').value,sekolah=$('#r_sekolah').value.trim(),tel=$('#r_tel').value.trim(),mpw=$('#r_mpw').value;
+  if(!nama||!email||!pw||!sekolah||!tel){toast('Isi semua ruangan');return}
+  const role = mpw===MASTER_PW?'MASTER_ADMIN':'JURULATIH';
+  const gurus=LS.get('gurus',[]);
+  if(gurus.some(g=>g.email.toLowerCase()===email.toLowerCase())){toast('Email sudah berdaftar');return}
+  gurus.push({nama:nama,email:email,password:pw,jawatan:jawatan,sekolah:sekolah,telefon:tel,role:role}); LS.set('gurus',gurus);
+  api('register',{nama:nama,email:email,password:pw,jawatan:jawatan,sekolah:sekolah,telefon:tel,masterPassword:mpw});
+  USER={nama:nama,email:email,jawatan:jawatan,sekolah:sekolah,telefon:tel,role:role}; LS.set('user',USER);
+  toast('🎉 Pendaftaran berjaya'); TAB='home'; render();
+}
+function addAthleteFlow(){
+  const nm=prompt('Nama penuh altelit:'); if(!nm) return;
+  const ic=prompt('No IC:')||'';
+  const jn=(prompt('Jantina (L/P):','L')||'L').toUpperCase();
+  const kt=prompt('Kategori (cth: BPL12):')||'';
+  const sk=prompt('Sekolah:')||'';
+  const acara=prompt('Acara utama (cth: 100 M) - boleh kosong:')||'';
+  const rb=acara?(prompt('Rekod peribadi acara ini:')||''):'';
+  const obj={nama:nm,ic:ic,jantina:jn,kategori:kt,sekolah:sk,acara:{}};
+  if(acara) obj.acara[acara]=rb;
+  const list=LS.get('athletes'); list.push(obj); LS.set('athletes',list);
+  api('addAthlete',{nama:nm,ic:ic,jantina:jn,kategori:kt,sekolah:sk,rekod:obj.acara,by:USER.nama,role:USER.role});
+  toast('✅ Altelit ditambah'); render();
+}
+function coachFlow(){
+  const acara=SUB.acara; const cur=(LS.get('coaches',{})[acara]||[]);
+  const s=prompt('Senaraikan email jurulatih untuk '+acara+' (dipisahkan koma, max 10):', cur.join(','));
+  if(s===null) return;
+  const arr=s.split(',').map(x=>x.trim()).filter(Boolean).slice(0,10);
+  const all=LS.get('coaches',{}); all[acara]=arr; LS.set('coaches',all);
+  api('setCoaches',{acara:acara,list:arr,role:USER.role});
+  toast('👨‍🏫 Senarai jurulatih dikemas kini'); render();
+}
+
+$$('.nav [data-tab]').forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;SUB=null;render()});
+
+render();
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+
+(async()=>{
+  if(API_URL && !LS.get('seeded')){
+    const r=await api('bulkSeed',{athletes:JSON.stringify(LS.get('athletes'))});
+    if(r&&r.ok){ LS.set('seeded',true); }
+  }
+})();
+</script>
+</body>
+</html>
