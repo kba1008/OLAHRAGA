@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz5JZTK1t1Ts5dFBNWfv2C6QXsS5MW_hnrV-ApQkrGQ1pGS12CrGL9n6gWUXz6L_q3C9Q/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyJ0g2KvtyuuHh9b9_AKQwrO9RV0xIWz38ojhZF1zmeMdz89-oapHE_gyk6CHYu78fr1A/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -742,25 +742,43 @@ function vAcaraDetail(){
 function itemAcaraDetail(n,p,info,boleh,t){
   const a=atletById(p["ATLET ID"])||{"NAMA PENUH":p["NAMA ATLET"],KATEGORI:p.KATEGORI,SEKOLAH:p.SEKOLAH,ID:p["ATLET ID"]};
   const b=terbaik(n,p["ATLET ID"]), hadir=hadirHariIni(p["ATLET ID"],t);
+  const lagiBaik=(x,y)=>info.JENIS==="MASA"?x-y:y-x; /* terbaik dahulu */
   const rHariIni=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t)
-    .sort((x,y)=>masaKunci(x.MASA).localeCompare(masaKunci(y.MASA)));
+    .sort((x,y)=>{
+      const vx=Number(x.NILAI), vy=Number(y.NILAI);
+      const ox=isFinite(vx)&&vx>0, oy=isFinite(vy)&&vy>0;
+      if(ox&&oy) return lagiBaik(vx,vy) || masaKunci(x.MASA).localeCompare(masaKunci(y.MASA));
+      if(ox) return -1; if(oy) return 1;
+      return masaKunci(x.MASA).localeCompare(masaKunci(y.MASA));
+    });
+  const bHariIni=rHariIni.length?Number(rHariIni[0].NILAI):null;
   const chips=rHariIni.length
-    ? `<div style="margin-top:6px">${rHariIni.map(r=>boleh
-        ? `<span class="pill" style="cursor:pointer" onclick="event.stopPropagation();formEditRekod('${esc(n)}','${esc(r.ID)}')">${esc(r.KEPUTUSAN)} ✎</span>`
-        : `<span class="pill">${esc(r.KEPUTUSAN)}</span>`).join("")}</div>`
+    ? `<div style="margin-top:6px">${rHariIni.map((r,i)=>{
+        const gaya=i===0?'style="cursor:pointer;border-color:var(--ok);color:var(--ok)"':'style="cursor:pointer"';
+        return boleh
+          ? `<span class="pill" ${gaya} onclick="event.stopPropagation();formEditRekod('${esc(n)}','${esc(r.ID)}')">${i===0?"★ ":""}${esc(r.KEPUTUSAN)} ✎</span>`
+          : `<span class="pill" ${i===0?'style="border-color:var(--ok);color:var(--ok)"':""}>${i===0?"★ ":""}${esc(r.KEPUTUSAN)}</span>`;
+      }).join("")}</div>`
     : "";
+  const rp=String(p["REKOD PERIBADI"]||"").trim();
+  const barisInfo=`<div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center">
+    <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b></span>
+    <span>⭐ Terbaik Latihan: <b>${b!==null?fmtNilai(b,info):"-"}</b></span>
+    <span>📅 Terbaik Hari Ini: <b>${bHariIni!==null&&isFinite(bHariIni)&&bHariIni>0?fmtNilai(bHariIni,info):"-"}</b></span>
+    ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}
+  </div>`;
   return `<div class="item" id="ad-${esc(n)}-${esc(p["ATLET ID"])}">
     <img class="av" src="${avatar(a)}" ${avErr(a)}/>
     <div style="flex:1" onclick="go('profil',{id:'${esc(p["ATLET ID"])}'})">
       <div class="nm">${esc(p["NAMA ATLET"])}</div>
       <div class="sub">${esc(p.KATEGORI)} • ${esc(p.SEKOLAH)}</div>
-      <div class="sub">Terbaik: <b>${b!==null?fmtNilai(b,info):esc(p["REKOD PERIBADI"]||"Tiada rekod")}</b> ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}</div>
-      ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}):</div>${chips}`:""}
+      ${barisInfo}
+      ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}) — terbaik di hadapan:</div>${chips}`:""}
     </div>
-    ${boleh?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>
-      <button class="btn sm bad" style="margin-top:6px" onclick="keluarAtletAcara('${esc(n)}','${esc(p["ATLET ID"])}')">✕ Keluar Acara</button></div>`:""}
+    ${boleh?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button></div>`:""}
   </div>`;
 }
+
 
 /* Keluarkan atlet dari acara — jurulatih acara atau Master Admin */
 async function keluarAtletAcara(n,id){
@@ -948,12 +966,20 @@ function vProfil(){
   ${acaraDia.map(x=>{
     const n=x.ACARA, rs=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(a.ID)).sort((p,q)=>String(q.TARIKH).localeCompare(String(p.TARIKH)));
     const b=terbaik(n,a.ID);
+    const pn=penyertaan(n).find(z=>String(z["ATLET ID"])===String(a.ID))||{};
+    const rp=String(pn["REKOD PERIBADI"]||"").trim();
     return `<div class="card"><div class="row" style="align-items:center">
       <div><div class="nm">${esc(n)}</div><div class="small">${rs.length} rekod • Purata ${rs.length?fmtNilai(purata(rs.map(r=>Number(r.NILAI)||0)),x):"-"}</div></div>
       <div class="right"><span class="badge">TERBAIK ${b!==null?fmtNilai(b,x):"-"}</span></div></div>
+      <div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px">
+        <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b></span>
+        <span>⭐ Terbaik Latihan: <b>${b!==null?fmtNilai(b,x):"-"}</b></span>
+      </div>
       ${rs.slice(0,8).map(r=>`<div class="sub">• ${esc(fmtTarikh(r.TARIKH))} ${esc(fmtMasa(r.MASA))} — <b>${esc(r.KEPUTUSAN)}</b></div>`).join("")||'<div class="sub">Tiada rekod</div>'}
+      ${bolehRekod(n)?`<button class="btn sm bad" style="margin-top:8px" onclick="keluarAtletAcara('${esc(n)}','${esc(a.ID)}')">✕ Gugurkan dari ${esc(n)}</button>`:""}
     </div>`;
   }).join("")||`<div class="card small">Atlet ini belum dimasukkan ke mana-mana acara.</div>`}`;
+
 }
 
 function itemFail(f){
