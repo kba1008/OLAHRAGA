@@ -21,7 +21,7 @@ var PREFIX_REKOD = "REKOD_";
 /* ID FOLDER GOOGLE DRIVE untuk simpan gambar atlet.
    Ambil dari URL folder: https://drive.google.com/drive/folders/<ID_INI>
    Biarkan kosong ("") jika mahu skrip cipta folder "GAMBAR ATLET" secara automatik. */
-var FOLDER_GAMBAR_ID = "1Nz0S__dRbA4vP4Ca0xBRhpdPNUj4KVOf";
+var FOLDER_GAMBAR_ID = "";
 var NAMA_FOLDER_GAMBAR = "GAMBAR ATLET";
 
 var ADMIN_EMEL = "admin";
@@ -313,16 +313,55 @@ function balas(obj, callback) {
   return ContentService.createTextOutput(teks).setMimeType(ContentService.MimeType.JSON);
 }
 
+/* Klasifikasi ralat supaya teknision mudah mengesan punca masalah */
+function kodRalat(mesej) {
+  var m = String(mesej || "").toLowerCase();
+  if (m.indexOf("tindakan tidak sah") >= 0) return "DB-100";           // aksi tidak dikenali
+  if (m.indexOf("kata laluan") >= 0 || m.indexOf("emel") >= 0) return "DB-200"; // pengesahan
+  if (m.indexOf("hanya") >= 0 || m.indexOf("maksima") >= 0) return "DB-300";    // kebenaran / had
+  if (m.indexOf("kehadiran") >= 0) return "DB-400";                    // peraturan kehadiran
+  if (m.indexOf("tidak dijumpai") >= 0 || m.indexOf("sudah") >= 0) return "DB-500"; // data
+  if (m.indexOf("sheet") >= 0 || m.indexOf("range") >= 0 || m.indexOf("lajur") >= 0) return "DB-006";
+  if (m.indexOf("permission") >= 0 || m.indexOf("authoriz") >= 0) return "DB-007";
+  if (m.indexOf("lock") >= 0 || m.indexOf("timeout") >= 0) return "DB-002";
+  return "DB-004";
+}
+
+function logRalat(payload, err) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName("LOG RALAT");
+    if (!sh) {
+      sh = ss.insertSheet("LOG RALAT");
+      sh.appendRow(["TARIKH & MASA", "KOD", "AKSI", "MESEJ", "OLEH", "BUTIRAN"]);
+      sh.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground("#1f2937").setFontColor("#ffffff");
+      sh.setFrozenRows(1);
+    }
+    sh.appendRow([new Date(), kodRalat(err && err.message), (payload && payload.action) || "-",
+      String((err && err.message) || err), (payload && payload.olehEmel) || "-",
+      String((err && err.stack) || "").slice(0, 900)]);
+  } catch (x) { /* jangan biarkan log gagal menghalang balasan */ }
+}
+
 function proses(payload, callback) {
+  var mula = new Date().getTime();
   try {
     var fn = TINDAKAN[payload.action];
     if (!fn) throw new Error("Tindakan tidak sah: " + payload.action);
     var lock = LockService.getScriptLock();
     lock.waitLock(25000);
-    try { return balas({ ok: true, data: fn(payload) }, callback); }
+    try { return balas({ ok: true, data: fn(payload), ms: new Date().getTime() - mula }, callback); }
     finally { lock.releaseLock(); }
   } catch (err) {
-    return balas({ ok: false, error: String(err.message || err) }, callback);
+    logRalat(payload, err);
+    return balas({
+      ok: false,
+      kod: kodRalat(err && err.message),
+      error: String((err && err.message) || err),
+      aksi: (payload && payload.action) || "-",
+      masa: new Date().toISOString(),
+      butiran: String((err && err.stack) || "").slice(0, 600)
+    }, callback);
   }
 }
 

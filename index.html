@@ -102,9 +102,11 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    Tiada data disimpan dalam app kecuali sesi log masuk peranti.
    ============================================================ */
 /* === URL GOOGLE APPS SCRIPT (PANGKALAN DATA GOOGLE SHEET) === */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyvn_u8mavtiVeMdjkLSVVxv8fA9vjh9nL8LTZE3O1xt2UP5t3lZcZZqAbEfGEcaib9BQ/exec";
-const LS_API="at_api_url", LS_USER="at_user";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbwOXzgsux3k3iUWN8rxN_NWsx5sPXR-9JRlZhoXUCSXx4U14EEDRgHFszQBg3Su9ysT/exec";
+const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
+const PIN_TEKNISION="101010";           /* PIN untuk Mod Teknision (boleh diubah) */
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
+let TEKNISION=localStorage.getItem(LS_TEK)==="1";
 let U=null; try{U=JSON.parse(localStorage.getItem(LS_USER)||"null")}catch(e){}
 let DB=null, VIEW="home", CTX={};
 
@@ -116,19 +118,105 @@ const isAdmin=()=>U&&U.peranan==="ADMIN";
 function toast(m,ms=2600){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),ms)}
 function loading(t="Memuatkan data dari Google Sheet..."){app().innerHTML=`<div class="card" style="text-align:center"><div class="sp"></div><div class="small">${esc(t)}</div></div>`}
 
+/* ============================================================
+   DIAGNOSTIK PANGKALAN DATA (Google Sheet)
+   Semua ralat berkaitan pangkalan data direkod dengan KOD RALAT,
+   PUNCA dan TINDAKAN supaya teknision mudah menyelesaikannya.
+   ============================================================ */
+const LOG=[];
+function logTambah(jenis,mesej,butiran){
+  LOG.unshift({masa:new Date().toLocaleString("ms-MY"),jenis,mesej:String(mesej||""),butiran:String(butiran||"")});
+  if(LOG.length>80) LOG.pop();
+}
+/* URL pangkalan data TIDAK dipaparkan kepada umum — hanya Mod Teknision */
+function urlSelamat(u){
+  if(!u) return "(tiada)";
+  if(TEKNISION) return u;
+  const m=String(u).match(/\/macros\/s\/([^/]+)/);
+  const id=m?m[1]:"";
+  return "script.google.com/macros/s/••••••••"+id.slice(-4)+"/exec";
+}
+const RUJUKAN={
+  "DB-001":["URL pangkalan data belum ditetapkan dalam aplikasi.","Teknision: masuk Mod Teknision → tetapkan URL Web App Apps Script (/exec)."],
+  "DB-002":["Sambungan tamat masa (>45 saat). Google Sheet lambat membalas atau internet terputus.","Semak sambungan internet. Jika Sheet terlalu besar, kurangkan baris atau cuba semula."],
+  "DB-003":["Aplikasi gagal menghubungi skrip Google. Biasanya deployment tidak dibenarkan untuk umum, URL salah, atau deployment lama telah dipadam.","Teknision: Apps Script → Deploy → Manage deployments → Web app → Execute as: Me, Who has access: Anyone. Kemudian salin semula URL /exec."],
+  "DB-004":["Skrip Google Sheet membalas dengan ralat.","Lihat butiran mentah di bawah / semak Apps Script → Executions untuk log penuh."],
+  "DB-005":["Balasan dari Google Sheet tidak sah (bukan format JSONP yang dijangka).","Teknision: pastikan code.gs terkini digunakan dan deployment telah dikemas kini (New deployment) selepas menampal kod."],
+  "DB-006":["Sheet atau lajur yang diperlukan tiada dalam fail Google Sheet.","Teknision: jalankan fungsi setupPangkalanData() dalam Apps Script untuk mencipta semula sheet & label."],
+  "DB-007":["Ralat kebenaran (authorization) Apps Script.","Teknision: buka Apps Script → Run → benarkan akses (Authorize) untuk akaun pemilik Sheet."]
+};
+function RalatDB(kod,mesej,mentah,aksi){
+  const r=RUJUKAN[kod]||["Ralat pangkalan data tidak dikenali.","Hubungi teknision dengan laporan teknikal di bawah."];
+  const e=new Error(mesej||r[0]);
+  e.kod=kod; e.punca=r[0]; e.tindakan=r[1]; e.mentah=mentah||""; e.aksi=aksi||"";
+  logTambah("RALAT",`[${kod}] ${e.message}`,`Aksi: ${e.aksi} | ${e.mentah}`);
+  return e;
+}
+window.addEventListener("error",ev=>logTambah("JS",ev.message,(ev.filename||"")+":"+(ev.lineno||"")));
+window.addEventListener("unhandledrejection",ev=>logTambah("JS",(ev.reason&&ev.reason.message)||String(ev.reason),""));
+
 /* ---------- Panggilan API (JSONP -> tiada isu CORS) ---------- */
 function api(action,payload={}){
   return new Promise((res,rej)=>{
-    if(!API) return rej(new Error("URL Google Apps Script belum ditetapkan."));
+    if(!API) return rej(RalatDB("DB-001","URL Google Apps Script belum ditetapkan.","",action));
+    const mula=Date.now();
     const cb="cb_"+Math.random().toString(36).slice(2);
     const s=document.createElement("script");
-    const t=setTimeout(()=>{cleanup();rej(new Error("Sambungan tamat masa. Semak URL / sambungan internet."))},45000);
+    const t=setTimeout(()=>{cleanup();rej(RalatDB("DB-002","Sambungan ke Google Sheet tamat masa.","Tempoh: 45s",action))},45000);
     function cleanup(){clearTimeout(t);delete window[cb];s.remove()}
-    window[cb]=r=>{cleanup(); r&&r.ok?res(r.data):rej(new Error(r&&r.error||"Ralat tidak diketahui"))};
-    s.onerror=()=>{cleanup();rej(new Error("Gagal menghubungi Google Sheet."))};
+    window[cb]=r=>{
+      cleanup();
+      const ms=Date.now()-mula;
+      if(!r||typeof r!=="object") return rej(RalatDB("DB-005","Balasan pangkalan data tidak sah.","Balasan: "+String(r).slice(0,300),action));
+      if(r.ok){ logTambah("OK",`Aksi '${action}' berjaya (${ms}ms)`,""); return res(r.data); }
+      const kod=r.kod||(/setup|sheet|lajur|column/i.test(r.error||"")?"DB-006":/authoriz|permission|kebenaran/i.test(r.error||"")?"DB-007":"DB-004");
+      rej(RalatDB(kod,r.error||"Ralat tidak diketahui dari Google Sheet.","Aksi: "+action+" | Butiran: "+JSON.stringify(r).slice(0,600),action));
+    };
+    s.onerror=()=>{cleanup();rej(RalatDB("DB-003","Gagal menghubungi pangkalan data Google Sheet.","Aksi: "+action,action))};
     s.src=API+(API.includes("?")?"&":"?")+"callback="+cb+"&payload="+encodeURIComponent(JSON.stringify({action,...payload}));
+    logTambah("HANTAR",`Aksi '${action}' dihantar ke pangkalan data`,"");
     document.body.appendChild(s);
   });
+}
+/* Papar ralat secara terperinci (mesra teknision) */
+function laporanTeks(e){
+  return ["=== LAPORAN RALAT ATLETTRACK ===",
+  "Masa      : "+new Date().toLocaleString("ms-MY"),
+  "Kod Ralat : "+(e.kod||"UI-000"),
+  "Mesej     : "+(e.message||""),
+  "Punca     : "+(e.punca||"-"),
+  "Tindakan  : "+(e.tindakan||"-"),
+  "Aksi API  : "+(e.aksi||"-"),
+  "Butiran   : "+(e.mentah||"-"),
+  "Pengguna  : "+(U?U.emel:"(belum log masuk)"),
+  "Peranti   : "+navigator.userAgent,
+  "Pangkalan : "+urlSelamat(API),
+  "--- 15 LOG TERAKHIR ---",
+  ...LOG.slice(0,15).map(l=>`[${l.masa}] ${l.jenis}: ${l.mesej} ${l.butiran}`)].join("\n");
+}
+function salinLaporan(e){
+  const t=e?laporanTeks(e):laporanTeks({kod:"INFO",message:"Laporan diagnostik manual"});
+  navigator.clipboard?.writeText(t).then(()=>toast("Laporan teknikal disalin"),()=>toast("Gagal menyalin"));
+  window.__laporanTerakhir=t;
+}
+let RALAT_TERAKHIR=null;
+function toastRalat(e){
+  RALAT_TERAKHIR=e;
+  toast("["+(e.kod||"UI-000")+"] "+(e.message||"Ralat")+(e.tindakan?" — "+e.tindakan:""),6000);
+}
+function kadRalat(e,cubaLagi){
+  RALAT_TERAKHIR=e;
+  return `<div class="card" style="border:1px solid rgba(255,60,90,.5)">
+    <span class="badge" style="background:linear-gradient(90deg,#ff2d55,#ff9500)">KOD ${esc(e.kod||"UI-000")}</span>
+    <h2 style="margin-top:10px">Masalah Pangkalan Data</h2>
+    <p class="small"><b>Mesej:</b> ${esc(e.message||"")}</p>
+    <p class="small"><b>Punca:</b> ${esc(e.punca||"Tidak diketahui")}</p>
+    <p class="small"><b>Tindakan disyorkan:</b> ${esc(e.tindakan||"Hubungi teknision.")}</p>
+    ${e.mentah?`<details style="margin-top:8px"><summary class="small">Butiran teknikal</summary><div class="small" style="word-break:break-all">${esc(e.mentah)}</div></details>`:""}
+    ${cubaLagi?`<button class="btn" onclick="${cubaLagi}">Cuba lagi</button>`:""}
+    <button class="btn ghost sm" onclick="salinLaporan(RALAT_TERAKHIR)">📋 Salin laporan untuk teknision</button>
+    <button class="btn ghost sm" onclick="modTeknision()">🔧 Mod Teknision</button>
+  </div>`;
 }
 const who=()=>({olehNama:U?U.nama:"",olehEmel:U?U.emel:""});
 
@@ -161,9 +249,18 @@ const purata=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 async function muat(){
   loading();
   try{ DB=await api("data"); render(); }
-  catch(e){ app().innerHTML=`<div class="card"><h2>Gagal memuatkan data</h2><p class="small">${esc(e.message)}</p><button class="btn" onclick="muat()">Cuba lagi</button><button class="btn ghost" onclick="tetapApi()">Tukar URL Google Sheet</button></div>`; }
+  catch(e){ app().innerHTML=kadRalat(e,"muat()"); }
 }
-function tetapApi(){ localStorage.removeItem(LS_API); API=API_URL_LALAI; render(); }
+function tetapApi(){ if(!TEKNISION) return modTeknision(); localStorage.removeItem(LS_API); API=API_URL_LALAI; render(); }
+/* Mod Teknision — URL pangkalan data tidak didedahkan kepada pengguna umum */
+function modTeknision(){
+  if(TEKNISION) return go("diagnostik");
+  const p=prompt("PIN Teknision:");
+  if(p===null) return;
+  if(p!==PIN_TEKNISION) return toast("PIN salah");
+  TEKNISION=true; localStorage.setItem(LS_TEK,"1"); toast("Mod Teknision aktif"); go("diagnostik");
+}
+function keluarTeknision(){ TEKNISION=false; localStorage.removeItem(LS_TEK); toast("Mod Teknision ditutup"); go("saya"); }
 function logout(){ localStorage.removeItem(LS_USER); U=null; DB=null; VIEW="home"; render(); }
 function go(v,c={}){ VIEW=v; CTX=c; window.scrollTo(0,0); render(); }
 
@@ -175,7 +272,7 @@ function render(){
   if(!DB) return muat();
   $("#nav").classList.remove("hide");
   navBar();
-  ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,profil:vProfil,atlet:vAtlet,sejarah:vSejarah,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
+  ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
 }
 function navBar(){
   const t=[["home","🏠","Utama"],["kehadiran","✅","Kehadiran"],["acara","🏆","Rekod"],["dashboard","📊","Dashboard"],["saya","👤","Saya"]];
@@ -195,8 +292,8 @@ function skrinApi(){
     <span class="badge">LANGKAH PERTAMA</span>
     <h3 style="margin-top:10px">URL Google Apps Script</h3>
     <p class="small">Buka Google Sheet anda → Extensions → Apps Script → tampal <b>code.gs</b> → Run <b>setupPangkalanData</b> → Deploy sebagai <b>Web app</b> (Anyone). Tampal URL <code>/exec</code> di bawah.</p>
-    <label>URL Web App</label>
-    <input id="u" value="${esc(API_URL_LALAI)}" placeholder="https://script.google.com/macros/s/..../exec" />
+    <label>URL Web App (teknision sahaja)</label>
+    <input id="u" value="${TEKNISION?esc(API_URL_LALAI):""}" placeholder="https://script.google.com/macros/s/..../exec" />
     <button class="btn" onclick="simpanApi()">Sambung</button>
   </div>`;
 }
@@ -205,7 +302,7 @@ async function simpanApi(){
   if(!/^https:\/\/script\.google\.com\/.*\/exec/.test(v)) return toast("URL tidak sah (mesti berakhir /exec)");
   API=v; loading("Menguji sambungan...");
   try{ await api("setup"); localStorage.setItem(LS_API,v); toast("Sambungan berjaya!"); render(); }
-  catch(e){ API=""; toast("Gagal: "+e.message); render(); }
+  catch(e){ API=""; toastRalat(e); render(); }
 }
 
 /* ---------- 2. Daftar / Log Masuk ---------- */
@@ -233,22 +330,22 @@ function skrinAuth(){
       <button class="btn" onclick="doDaftar()">Daftar Akaun</button>
     `}
   </div>
-  <div class="card"><p class="small">Semua rekod disimpan <b>hanya</b> di dalam Google Sheet.</p>
-  <button class="btn ghost sm" onclick="tetapApi()">Tukar URL Google Sheet</button></div>`;
+  <div class="card"><p class="small">Semua rekod disimpan <b>hanya</b> di dalam pangkalan data rasmi (Google Sheet) yang diuruskan oleh teknision.</p>
+  <button class="btn ghost sm" onclick="modTeknision()">🔧 Mod Teknision</button></div>`;
 }
 async function doLogin(){
   const emel=$("#e").value.trim(), kataLaluan=$("#p").value;
   if(!emel||!kataLaluan) return toast("Sila isi emel dan kata laluan");
   loading("Mengesahkan...");
   try{ U=await api("login",{emel,kataLaluan}); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Selamat datang, "+U.nama); muat(); }
-  catch(e){ toast(e.message); render(); }
+  catch(e){ toastRalat(e); render(); }
 }
 async function doDaftar(){
   const p={nama:$("#n").value.trim(),emel:$("#e").value.trim(),kataLaluan:$("#p").value,jawatan:$("#j").value.trim(),sekolah:$("#s").value.trim(),telefon:$("#t").value.trim()};
   if(Object.values(p).some(v=>!v)) return toast("Sila lengkapkan semua maklumat");
   loading("Mendaftar...");
   try{ U=await api("daftar",p); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Pendaftaran berjaya"); muat(); }
-  catch(e){ toast(e.message); render(); }
+  catch(e){ toastRalat(e); render(); }
 }
 
 /* ---------- 3. Utama ---------- */
@@ -307,7 +404,7 @@ async function tandaHadir(id,status){
   toast("Menyimpan ke Google Sheet...",1200);
   try{ await api("kehadiran",{tarikh:kTarikh,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,status,...who()});
     DB=await api("data"); render(); toast(status+" — direkod oleh "+U.nama);
-  }catch(e){ toast(e.message) }
+  }catch(e){ toastRalat(e) }
 }
 
 /* ---------- Borang atlet ---------- */
@@ -329,7 +426,7 @@ async function simpanAtlet(id){
   if(!p.nama) return toast("Nama wajib diisi");
   tutup(); toast("Menyimpan...",1200);
   try{ await api(id?"kemaskiniAtlet":"tambahAtlet",id?{id,...p}:p); DB=await api("data"); render(); toast("Berjaya disimpan"); }
-  catch(e){ toast(e.message) }
+  catch(e){ toastRalat(e) }
 }
 
 /* ---------- 5. Senarai Acara ---------- */
@@ -359,7 +456,7 @@ async function simpanAcara(){
   if(!acara) return toast("Nama acara diperlukan");
   tutup();
   try{ await api("tambahAcara",{acara,jenis,unit:jenis==="MASA"?"saat":"meter",...who()}); DB=await api("data"); render(); toast("Acara ditambah + sheet baharu dibina"); }
-  catch(e){ toast(e.message) }
+  catch(e){ toastRalat(e) }
 }
 
 /* ---------- 6. Butiran Acara ---------- */
@@ -396,10 +493,10 @@ function formJurulatih(n){
 async function simpanJ(n){
   const v=$("#jg").value; if(!v) return toast("Tiada guru dipilih");
   const [emel,nama]=v.split("|"); tutup();
-  try{ await api("lantikJurulatih",{acara:n,emel,nama,...who()}); DB=await api("data"); render(); toast("Jurulatih dilantik"); }catch(e){ toast(e.message) }
+  try{ await api("lantikJurulatih",{acara:n,emel,nama,...who()}); DB=await api("data"); render(); toast("Jurulatih dilantik"); }catch(e){ toastRalat(e) }
 }
 async function buangJ(n,emel){
-  try{ await api("buangJurulatih",{acara:n,emel,...who()}); DB=await api("data"); render(); toast("Dibuang"); }catch(e){ toast(e.message) }
+  try{ await api("buangJurulatih",{acara:n,emel,...who()}); DB=await api("data"); render(); toast("Dibuang"); }catch(e){ toastRalat(e) }
 }
 function formPenyertaan(n){
   const ada=new Set(penyertaan(n).map(p=>String(p["ATLET ID"])));
@@ -413,7 +510,7 @@ async function simpanP(n){
   const id=$("#pa").value, a=atletById(id); if(!a) return toast("Pilih atlet");
   tutup();
   try{ await api("tambahPenyertaan",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,tarikh:today(),...who()}); DB=await api("data"); render(); toast("Atlet ditambah ke acara"); }
-  catch(e){ toast(e.message) }
+  catch(e){ toastRalat(e) }
 }
 function formRekod(n,id){
   const a=atletById(id)||{}, info=acaraInfo(n);
@@ -430,7 +527,7 @@ async function simpanR(n,id){
   const info=acaraInfo(n); tutup(); toast("Menyimpan ke Google Sheet...",1200);
   try{ await api("rekod",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,keputusan:nilai+" "+info.UNIT,nilai,catatan,tarikh,...who()});
     DB=await api("data"); render(); toast("Rekod disimpan oleh "+U.nama);
-  }catch(e){ toast(e.message) }
+  }catch(e){ toastRalat(e) }
 }
 
 /* ---------- 7. Sejarah rekod ---------- */
@@ -517,8 +614,10 @@ function vSaya(){
     <button class="btn ghost" onclick="muat()">↻ Segar semula data</button>
     <button class="btn bad" onclick="logout()">Log Keluar</button>
   </div>
-  <div class="card small">Pangkalan data: Google Sheet sahaja.<br/><span style="word-break:break-all">${esc(API)}</span>
-  <button class="btn ghost sm" style="margin-top:10px" onclick="tetapApi()">Tukar URL</button></div>`;
+  <div class="card small">Pangkalan data: <b>Google Sheet rasmi</b> (sambungan selamat).<br/>
+  <span style="word-break:break-all">${esc(urlSelamat(API))}</span>
+  <div class="small" style="margin-top:6px">URL penuh hanya boleh dilihat oleh teknision.</div>
+  <button class="btn ghost sm" style="margin-top:10px" onclick="modTeknision()">🔧 Mod Teknision / Diagnostik</button></div>`;
 }
 function vAdmin(){
   app().innerHTML=`${topbar("Panel Master Admin","saya")}
@@ -535,6 +634,67 @@ function vAdmin(){
   ${acaraList().map(a=>`<div class="card"><div class="nm">${esc(a.ACARA)} <span class="small">(${jurulatihAcara(a.ACARA).length}/10)</span></div>
     <div>${jurulatihAcara(a.ACARA).map(j=>`<span class="chip">${esc(j["NAMA JURULATIH"])} <a href="#" style="color:var(--bad)" onclick="event.preventDefault();buangJ('${esc(a.ACARA)}','${esc(j["EMEL JURULATIH"])}')">✕</a></span>`).join("")||'<span class="chip">Tiada</span>'}</div>
     <button class="btn sm ghost" style="margin-top:8px" onclick="formJurulatih('${esc(a.ACARA)}')">+ Lantik</button></div>`).join("")}`;
+}
+
+/* ---------- 11. Diagnostik (Teknision) ---------- */
+async function ujiSambungan(){
+  const el=$("#hasilUji"); if(el) el.innerHTML='<div class="sp"></div>';
+  const mula=Date.now();
+  try{
+    const d=await api("setup");
+    if(el) el.innerHTML=`<div class="small" style="color:var(--ok)">✔ Sambungan OK (${Date.now()-mula}ms). Pangkalan data membalas dengan betul.</div>`;
+  }catch(e){
+    if(el) el.innerHTML=kadRalat(e,"ujiSambungan()");
+  }
+}
+async function simpanUrlTek(){
+  const v=$("#tekurl").value.trim();
+  if(!/^https:\/\/script\.google\.com\/.*\/exec$/.test(v)) return toast("URL mesti bermula https://script.google.com dan berakhir /exec");
+  API=v; localStorage.setItem(LS_API,v); toast("URL pangkalan data dikemas kini"); ujiSambungan();
+}
+function vDiagnostik(){
+  if(!TEKNISION){ toast("Akses teknision diperlukan"); return go("saya"); }
+  const kira=k=>((DB&&DB[k])||[]).length;
+  app().innerHTML=`${topbar("Diagnostik Pangkalan Data","saya")}
+  <div class="card">
+    <span class="badge">MOD TEKNISION</span>
+    <h3 style="margin-top:10px">Sambungan</h3>
+    <label>URL Web App Apps Script</label>
+    <input id="tekurl" value="${esc(API)}" />
+    <button class="btn sm" onclick="simpanUrlTek()">Simpan URL</button>
+    <button class="btn sm ghost" onclick="ujiSambungan()">⚡ Uji Sambungan</button>
+    <div id="hasilUji" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h3>Status Data</h3>
+    <div class="row">
+      <div class="stat"><b>${kira("guru")}</b><span class="small">GURU</span></div>
+      <div class="stat"><b>${kira("atlet")}</b><span class="small">ATLET</span></div>
+      <div class="stat"><b>${kira("acara")}</b><span class="small">ACARA</span></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="stat"><b>${kira("kehadiran")}</b><span class="small">KEHADIRAN</span></div>
+      <div class="stat"><b>${kira("penyertaan")}</b><span class="small">PENYERTAAN</span></div>
+      <div class="stat"><b>${Object.values((DB&&DB.rekod)||{}).reduce((a,b)=>a+b.length,0)}</b><span class="small">REKOD</span></div>
+    </div>
+    ${!DB?'<div class="small" style="color:var(--bad);margin-top:8px">Data belum dimuatkan.</div>':""}
+    <button class="btn sm ghost" style="margin-top:10px" onclick="muat()">↻ Muat semula data</button>
+  </div>
+  <div class="card">
+    <h3>Log Aktiviti & Ralat (80 terakhir)</h3>
+    <div style="max-height:320px;overflow:auto">
+    ${LOG.map(l=>`<div class="sub" style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 0">
+      <b style="color:${l.jenis==="RALAT"?"var(--bad)":l.jenis==="OK"?"var(--ok)":"var(--p2)"}">${esc(l.jenis)}</b>
+      <span class="small"> ${esc(l.masa)}</span><br/>${esc(l.mesej)}${l.butiran?`<br/><span class="small">${esc(l.butiran)}</span>`:""}
+    </div>`).join("")||'<div class="small">Tiada log.</div>'}
+    </div>
+    <button class="btn sm ghost" style="margin-top:10px" onclick="salinLaporan(RALAT_TERAKHIR)">📋 Salin laporan penuh</button>
+  </div>
+  <div class="card">
+    <h3>Rujukan Kod Ralat</h3>
+    ${Object.keys(RUJUKAN).map(k=>`<div class="sub" style="padding:6px 0"><b>${k}</b> — ${esc(RUJUKAN[k][0])}<br/><span class="small">Tindakan: ${esc(RUJUKAN[k][1])}</span></div>`).join("")}
+  </div>
+  <div class="card"><button class="btn bad" onclick="keluarTeknision()">Keluar Mod Teknision</button></div>`;
 }
 
 /* ---------- Overlay ---------- */
