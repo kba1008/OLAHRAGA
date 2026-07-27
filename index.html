@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz5JZTK1t1Ts5dFBNWfv2C6QXsS5MW_hnrV-ApQkrGQ1pGS12CrGL9n6gWUXz6L_q3C9Q/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyJ0g2KvtyuuHh9b9_AKQwrO9RV0xIWz38ojhZF1zmeMdz89-oapHE_gyk6CHYu78fr1A/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1107,9 +1107,12 @@ function vDashboard(){
   const info=acaraInfo(dAcara);
   const grp={};
   rekodAcara(dAcara).forEach(r=>{ const id=String(r["ATLET ID"]); if(!Number(r.NILAI))return; (grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[]}).v.push(Number(r.NILAI)); });
-  let rank=Object.keys(grp).map(id=>({id,...grp[id],purata:purata(grp[id].v),terbaik:info.JENIS==="MASA"?Math.min.apply(null,grp[id].v):Math.max.apply(null,grp[id].v),n:grp[id].v.length}));
+  const rpMapD={};
+  penyertaan(dAcara).forEach(p=>{ const t=String(p["REKOD PERIBADI"]||"").trim(); if(t) rpMapD[String(p["ATLET ID"])]=t; });
+  let rank=Object.keys(grp).map(id=>({id,...grp[id],purata:purata(grp[id].v),terbaik:info.JENIS==="MASA"?Math.min.apply(null,grp[id].v):Math.max.apply(null,grp[id].v),rekodPeribadi:rpMapD[id]||"",n:grp[id].v.length}));
   const asc=info.JENIS==="MASA";
-  rank.sort((a,b)=>asc?a.purata-b.purata:b.purata-a.purata);
+  rank.sort((a,b)=>asc?a.terbaik-b.terbaik:b.terbaik-a.terbaik);
+
 
   const kats=[...new Set(rank.map(r=>r.kategori))].sort();
   if(dKat!=="__ALL__" && kats.indexOf(dKat)<0) dKat="__ALL__";
@@ -1132,8 +1135,10 @@ function vDashboard(){
         return `<div class="item" onclick="go('profil',{id:'${esc(r.id)}'})">
           <div class="rank ${i===0?"g1":i===1?"g2":i===2?"g3":""}">${i+1}</div>
           <img class="av" src="${avatar(a)}" ${avErr(a)}/>
-          <div style="flex:1"><div class="nm">${esc(r.nama)}</div><div class="sub">${esc(r.kategori)} • ${esc(r.sekolah)} • ${r.n} rekod</div></div>
-          <div class="right"><div class="nm" style="color:var(--p2)">${fmtNilai(r.purata,info)}</div><div class="sub">purata</div><div class="sub">terbaik ${fmtNilai(r.terbaik,info)}</div></div>
+          <div style="flex:1"><div class="nm">${esc(r.nama)}</div><div class="sub">${esc(r.kategori)} • ${esc(r.sekolah)} • ${r.n} rekod</div>
+            <div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center"><span>🏅 Rekod Peribadi: <b>${r.rekodPeribadi?esc(r.rekodPeribadi):"-"}</b></span><span>⭐ Terbaik Latihan: <b>${fmtNilai(r.terbaik,info)}</b></span></div>
+          </div>
+          <div class="right"><div class="nm" style="color:var(--p2)">${fmtNilai(r.terbaik,info)}</div><div class="sub">terbaik</div><div class="sub">purata ${fmtNilai(r.purata,info)}</div></div>
         </div>`;
       }).join("");
   }).join("");
@@ -1142,7 +1147,7 @@ function vDashboard(){
   <div class="tabs">${list.map(a=>`<button class="${a.ACARA===dAcara?"on":""}" onclick="dAcara='${esc(a.ACARA)}';render()">${esc(a.ACARA)}</button>`).join("")}</div>
   ${katTabs}
   <div class="card">
-    <div class="small">Ranking <b>mengikut kategori</b> berdasarkan <b>purata pencapaian</b> ${info.JENIS==="MASA"?"(masa terendah = terbaik)":"(jarak tertinggi = terbaik)"} bagi acara <b>${esc(dAcara||"-")}</b>.</div>
+    <div class="small">Ranking <b>mengikut kategori</b> berdasarkan <b>rekod terbaik semasa latihan</b> ${info.JENIS==="MASA"?"(masa terendah = terbaik)":"(jarak tertinggi = terbaik)"} bagi acara <b>${esc(dAcara||"-")}</b>.</div>
     <hr/>
     <div class="small" style="margin-bottom:8px"><b>🖨 Cetak Laporan Ranking</b> — pilih format laporan:</div>
     <div class="row">
@@ -1181,7 +1186,7 @@ function kiraRanking(namaAcara){
   const ikutKat={};
   rank.forEach(r=>{ (ikutKat[r.kategori]=ikutKat[r.kategori]||[]).push(r); });
   Object.keys(ikutKat).forEach(k=>{
-    ikutKat[k].sort((a,b)=>asc?a.purata-b.purata:b.purata-a.purata);
+    ikutKat[k].sort((a,b)=>asc?a.terbaik-b.terbaik:b.terbaik-a.terbaik);
     ikutKat[k].forEach((r,i)=>{ r.kedudukan=i+1; });
   });
   return {info,rank,ikutKat,asc};
