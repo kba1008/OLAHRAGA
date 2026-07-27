@@ -187,7 +187,7 @@ function semuaData(p) {
   acara.forEach(function (a) { rekod[a["ACARA"]] = baca(namaSheetRekod(a["ACARA"])); });
   return {
     guru: baca(SHEET_GURU).map(function (g) { return { nama: g["NAMA PENUH"], emel: g["EMEL"], jawatan: g["JAWATAN"], sekolah: g["SEKOLAH"], telefon: g["NO TELEFON"] }; }),
-    atlet: baca(SHEET_ATLET),
+    atlet: baca(SHEET_ATLET).map(function (a) { a["GAMBAR (URL)"] = normalGambar(a["GAMBAR (URL)"]); return a; }),
     kehadiran: baca(SHEET_KEHADIRAN).map(function (k) { k["TARIKH"] = tarikhStr(k["TARIKH"]); return k; }),
     acara: acara,
     jurulatih: baca(SHEET_JURULATIH),
@@ -265,7 +265,36 @@ function authorizeAll() {
 }
 
 /* p.gambarBase64 = "data:image/jpeg;base64,...."  ATAU base64 mentah
-   p.namaFail     = nama fail pilihan */
+   p.namaFail     = nama fail pilihan
+   NOTA: Google telah menyekat "uc?export=view" untuk <img>. Kita guna
+   lh3.googleusercontent.com/d/<ID> yang boleh dipapar terus dalam app. */
+function urlGambarDrive(id) { return "https://lh3.googleusercontent.com/d/" + id + "=w600"; }
+
+/* Tukar URL Drive lama (uc?export=view / open?id / /file/d/ID/view) kepada
+   bentuk lh3 yang boleh dipaparkan dalam <img>. */
+function normalGambar(u) {
+  var s = String(u || "").trim();
+  if (!s) return "";
+  if (s.indexOf("lh3.googleusercontent.com") > -1) return s;
+  var m = s.match(/[-\w]{25,}/);
+  if (s.indexOf("drive.google.com") > -1 && m) return urlGambarDrive(m[0]);
+  return s;
+}
+
+/* Jalankan sekali dalam Apps Script untuk membaiki URL gambar atlet yang lama. */
+function baikiUrlGambar() {
+  var s = ss().getSheetByName(SHEET_ATLET);
+  if (!s || s.getLastRow() < 2) return "Tiada atlet.";
+  var n = s.getLastRow() - 1;
+  var rng = s.getRange(2, 7, n, 1), v = rng.getValues(), ubah = 0;
+  for (var i = 0; i < v.length; i++) {
+    var baru = normalGambar(v[i][0]);
+    if (baru !== v[i][0]) { v[i][0] = baru; ubah++; }
+  }
+  rng.setValues(v);
+  return "Siap. " + ubah + " URL gambar dibaiki.";
+}
+
 function muatNaikGambar(p) {
   if (!p || !p.gambarBase64) throw new Error("Tiada gambar untuk dimuat naik.");
   var data = String(p.gambarBase64);
@@ -276,8 +305,9 @@ function muatNaikGambar(p) {
   var blob = Utilities.newBlob(Utilities.base64Decode(data), jenis, nama);
   var fail = folderGambar().createFile(blob);
   try { fail.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-  return { id: fail.getId(), url: "https://drive.google.com/uc?export=view&id=" + fail.getId() };
+  return { id: fail.getId(), url: urlGambarDrive(fail.getId()) };
 }
+
 
 /* ---------------- Fail Lampiran Atlet ---------------- */
 function senaraiFailAtlet(atletId) {
@@ -317,8 +347,16 @@ function padamFailAtlet(p) {
   throw new Error("Fail tidak dijumpai.");
 }
 
+/* Jurulatih yang DILANTIK (ada dalam JURULATIH_ACARA) atau Master Admin */
+function isJurulatihDilantik(emel) {
+  var e = String(emel || "").toLowerCase().trim();
+  if (!e) return false;
+  return baca(SHEET_JURULATIH).some(function (j) { return String(j["EMEL JURULATIH"]).toLowerCase().trim() === e; });
+}
+function bolehUrusAtlet(emel) { return isAdmin(emel) || isJurulatihDilantik(emel); }
+
 function tambahAtlet(p) {
-  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah atlet baharu.");
+  if (!bolehUrusAtlet(p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik boleh menambah atlet baharu.");
   dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
   var id = idBaharu("A", SHEET_ATLET);
   var urlGambar = p.gambar || "";
@@ -326,6 +364,51 @@ function tambahAtlet(p) {
   ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", urlGambar, p.catatan || "", p.olehNama, nowStr()]);
   return { id: id, gambar: urlGambar };
 }
+
+/* Padam atlet — hanya Master Admin atau jurulatih yang dilantik.
+   Rekod berkaitan (kehadiran, penyertaan, fail) turut dibersihkan. */
+function padamAtlet(p) {
+  if (!bolehUrusAtlet(p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik boleh memadam atlet.");
+  if (!p || !p.id) throw new Error("ID atlet diperlukan.");
+  var s = ss().getSheetByName(SHEET_ATLET);
+  if (!s) throw new Error("Atlet tidak dijumpai.");
+  var v = s.getDataRange().getValues(), jumpa = false;
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === String(p.id)) { s.deleteRow(i + 1); jumpa = true; break; }
+  }
+  if (!jumpa) throw new Error("Atlet tidak dijumpai.");
+
+  /* Buang fail lampiran (Drive + baris sheet) */
+  try {
+    var sf = ss().getSheetByName(SHEET_FAIL);
+    if (sf) {
+      var vf = sf.getDataRange().getValues();
+      for (var k = vf.length - 1; k >= 1; k--) {
+        if (String(vf[k][1]) === String(p.id)) {
+          try { DriveApp.getFileById(String(vf[k][6])).setTrashed(true); } catch (e) {}
+          sf.deleteRow(k + 1);
+        }
+      }
+    }
+  } catch (e) {}
+
+  /* Buang kehadiran & penyertaan */
+  buangBarisMengikut(SHEET_KEHADIRAN, 2, p.id);
+  buangBarisMengikut(SHEET_PENYERTAAN, 1, p.id);
+  return { ok: true };
+}
+
+function buangBarisMengikut(namaSheet, indeksLajur, nilai) {
+  try {
+    var s = ss().getSheetByName(namaSheet);
+    if (!s || s.getLastRow() < 2) return;
+    var v = s.getDataRange().getValues();
+    for (var i = v.length - 1; i >= 1; i--) {
+      if (String(v[i][indeksLajur]) === String(nilai)) s.deleteRow(i + 1);
+    }
+  } catch (e) {}
+}
+
 
 function kemaskiniAtlet(p) {
   var s = ss().getSheetByName(SHEET_ATLET);
@@ -350,13 +433,9 @@ function kemaskiniAtlet(p) {
   throw new Error("Atlet tidak dijumpai.");
 }
 
-/* Fungsi mudah untuk pentadbir menekan "Run" sekali supaya semua kebenaran (Drive, Sheet) diberikan. */
-function authorizeAll() {
-  setupPangkalanData();
-  try { folderGambar(); } catch (e) {}
-  try { folderFail(); } catch (e) {}
-  return "OK — semua kebenaran diberi.";
-}
+/* (authorizeAll penuh ditakrifkan di atas — jangan tambah versi kedua,
+   kerana takrifan kedua akan menimpa versi penuh tersebut.) */
+
 
 function simpanKehadiran(p) {
   dapatSheet(SHEET_KEHADIRAN, HEADERS[SHEET_KEHADIRAN], "#0f9d58");
@@ -457,6 +536,8 @@ var TINDAKAN = {
   muatNaikFailAtlet: muatNaikFailAtlet,
   padamFailAtlet: padamFailAtlet,
   tambahAtlet: tambahAtlet,
+  padamAtlet: padamAtlet,
+  baikiUrlGambar: function () { return { mesej: baikiUrlGambar() }; },
   kemaskiniAtlet: kemaskiniAtlet,
   kehadiran: simpanKehadiran,
   lantikJurulatih: lantikJurulatih,

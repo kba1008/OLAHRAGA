@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyJkuhJY2d7Rs0tOauznkNzD3TLqAaRWV0waULrj8FRNJAuVNaVuV0Jft0ISoyr58A6Kg/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxY8HJOPFcM5kLZnKrKOj9wHSH5H4FelBO07XpPGBWyZD3YVqGhaNuEGY28t5AX1_CAmg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -127,6 +127,9 @@ const $=s=>document.querySelector(s), app=()=>$("#app");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
 const isAdmin=()=>U&&U.peranan==="ADMIN";
+/* Master Admin ATAU jurulatih yang telah dilantik untuk mana-mana acara */
+const isJurulatihDilantik=()=>!!U&&((typeof DB!=="undefined"&&DB&&DB.jurulatih)||[]).some(j=>String(j["EMEL JURULATIH"]||"").toLowerCase().trim()===String(U.emel||"").toLowerCase().trim());
+const bolehUrusAtlet=()=>isAdmin()||isJurulatihDilantik();
 
 function toast(m,ms=2400){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),ms)}
 function loading(t="Memuatkan data dari Google Sheet..."){app().innerHTML=`<div class="card" style="text-align:center"><div class="sp"></div><div class="small">${esc(t)}</div></div>`}
@@ -252,13 +255,30 @@ function kadRalat(e,cubaLagi){
 const who=()=>({olehNama:U?U.nama:"",olehEmel:U?U.emel:""});
 
 /* ---------- Avatar ---------- */
-function avatar(a){
-  if(a && a["GAMBAR (URL)"]) return esc(a["GAMBAR (URL)"]);
-  const p=String((a&&a["JANTINA"])||"").toUpperCase().startsWith("P");
+function avatarLalai(jantina){
+  const p=String(jantina||"").toUpperCase().startsWith("P");
   const c1=p?"#ff2d95":"#00c6ff", c2=p?"#8a2be2":"#6d28f9";
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="100" height="100" fill="url(#a)"/><circle cx="50" cy="38" r="17" fill="#fff" opacity=".92"/><path d="M15 96c3-22 18-32 35-32s32 10 35 32z" fill="#fff" opacity=".92"/></svg>`;
   return "data:image/svg+xml;utf8,"+encodeURIComponent(svg);
 }
+/* Google menyekat "uc?export=view" untuk <img>. Tukar ke bentuk lh3 yang boleh dipapar. */
+function urlGambarBoleh(u){
+  const s=String(u||"").trim();
+  if(!s) return "";
+  if(s.indexOf("lh3.googleusercontent.com")>-1) return s;
+  const m=s.match(/[-\w]{25,}/);
+  if(s.indexOf("drive.google.com")>-1 && m) return "https://lh3.googleusercontent.com/d/"+m[0]+"=w600";
+  return s;
+}
+function avatar(a){
+  const u=urlGambarBoleh(a && a["GAMBAR (URL)"]);
+  return esc(u || avatarLalai(a&&a["JANTINA"]));
+}
+/* Letak pada setiap <img> atlet: jika gambar Drive gagal dimuat, tunjuk avatar lalai. */
+function avErr(a){
+  return `onerror="this.onerror=null;this.src='${avatarLalai(a&&a["JANTINA"]).replace(/'/g,"%27")}'"`;
+}
+
 
 /* ---------- Bantuan data ---------- */
 const acaraList=()=>((DB&&DB.acara)||[]).filter(a=>String(a.AKTIF||"YA").toUpperCase()!=="TIDAK");
@@ -277,22 +297,44 @@ function terbaik(n,id){
 }
 const purata=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
 
-/* ---------- Format tarikh & masa (baiki paparan 1899-12-30T..Z) ---------- */
-function fmtMasa(v){
+/* ---------- Format tarikh & masa ----------
+   TARIKH : dd/MM/yyyy      MASA : 8.00am / 3.45pm                        */
+function masaKunci(v){ /* HH:mm:ss untuk tujuan susunan sahaja */
   if(v===null||v===undefined||v==="") return "";
   if(v instanceof Date) return v.toTimeString().slice(0,8);
   const t=String(v).trim();
-  const m=t.match(/(\d{2}):(\d{2})(:(\d{2}))?/);
   if(t.indexOf("T")>-1 && /Z$/.test(t)){ const d=new Date(t); if(!isNaN(d)) return d.toISOString().slice(11,19); }
-  return m?(m[1]+":"+m[2]+(m[4]?":"+m[4]:"")):t;
+  const m=t.match(/(\d{1,2}):(\d{2})(:(\d{2}))?/);
+  return m?(("0"+m[1]).slice(-2)+":"+m[2]+":"+(m[4]||"00")):t;
+}
+function fmtMasa(v){
+  const k=masaKunci(v);
+  const m=k.match(/^(\d{2}):(\d{2})/);
+  if(!m) return k;
+  let h=Number(m[1]); const mm=m[2];
+  const ap=h<12?"am":"pm";
+  h=h%12; if(h===0) h=12;
+  return h+"."+mm+ap;
 }
 function fmtTarikh(v){
   if(v===null||v===undefined||v==="") return "";
-  if(v instanceof Date) return v.toISOString().slice(0,10);
-  const t=String(v).trim();
-  const m=t.match(/\d{4}-\d{2}-\d{2}/);
-  return m?m[0]:t.slice(0,10);
+  let t;
+  if(v instanceof Date) t=v.toISOString().slice(0,10);
+  else t=String(v).trim();
+  const iso=t.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(iso) return iso[3]+"/"+iso[2]+"/"+iso[1];
+  const dmy=t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if(dmy) return ("0"+dmy[1]).slice(-2)+"/"+("0"+dmy[2]).slice(-2)+"/"+dmy[3];
+  return t.slice(0,10);
 }
+/* Tarikh + masa penuh, cth: 27/07/2026 8.00am */
+function fmtTarikhMasa(v){
+  if(!v) return "";
+  const s=String(v);
+  const t=fmtTarikh(s), m=fmtMasa(s);
+  return (t?t:"")+(m&&/\d{1,2}[:.]\d{2}/.test(s)?" "+m:"");
+}
+
 
 /* Kemas kini kehadiran secara tempatan (optimistik) */
 function setKehadiranLokal(atletId,tarikh,status,nama,kategori,sekolah){
@@ -463,7 +505,7 @@ function vKehadiran(){
     <div class="row"><div><label>Tarikh</label><input type="date" id="kt" value="${kTarikh}" onchange="kTarikh=this.value;render()"/></div>
     <div><label>Cari</label><input id="kc" value="${esc(kCari)}" placeholder="Nama / kategori / sekolah" oninput="kCari=this.value;clearTimeout(window._d);window._d=setTimeout(render,350)"/></div></div>
     <div class="small" style="margin-top:10px">Hadir: <b style="color:var(--ok)">${hadir}</b> / ${(DB.atlet||[]).length} atlet</div>
-    ${isAdmin()?`<button class="btn sm" style="margin-top:10px" onclick="formAtlet()">+ Tambah Atlet Baharu</button>`:`<div class="small" style="margin-top:8px">Hanya Master Admin boleh menambah atlet baharu.</div>`}
+    ${bolehUrusAtlet()?`<button class="btn sm" style="margin-top:10px" onclick="formAtlet()">+ Tambah Atlet Baharu</button>`:`<div class="small" style="margin-top:8px">Hanya Master Admin atau jurulatih yang dilantik boleh menambah / memadam atlet.</div>`}
   </div>
   <div id="senaraiK">
   ${list.map(a=>itemKehadiran(a,rec[a.ID])).join("")||`<div class="card small">Tiada atlet dijumpai.</div>`}
@@ -473,7 +515,7 @@ function itemKehadiran(a,k){
   const st=k?String(k.STATUS).toUpperCase():"";
   const bz=!!PENDING_KEH[a.ID];
   return `<div class="item" id="ki-${esc(a.ID)}">
-    <img class="av" src="${avatar(a)}" alt="${esc(a["NAMA PENUH"])}"/>
+    <img class="av" src="${avatar(a)}" ${avErr(a)} alt="${esc(a["NAMA PENUH"])}"/>
     <div style="flex:1" onclick="go('profil',{id:'${esc(a.ID)}'})">
       <div class="nm">${esc(a["NAMA PENUH"])}</div>
       <div class="sub">${esc(a.KATEGORI)} • ${esc(a.SEKOLAH)}</div>
@@ -539,6 +581,22 @@ async function simpanAtlet(id){
     tutup(); render(); toast("Berjaya disimpan");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan ke Google Sheet";} }
 }
+
+/* Padam atlet — Master Admin atau jurulatih yang dilantik sahaja */
+async function padamAtlet(id){
+  if(!bolehUrusAtlet()) return toast("Hanya Master Admin atau jurulatih yang dilantik boleh memadam atlet.");
+  const a=atletById(id); if(!a) return toast("Atlet tidak dijumpai");
+  if(!confirm(`Padam atlet "${a["NAMA PENUH"]}"?\n\nSemua rekod kehadiran, penyertaan dan fail atlet ini akan turut dipadam. Tindakan ini tidak boleh dibatalkan.`)) return;
+  try{
+    await api("padamAtlet",{id,...who()});
+    DB.atlet=(DB.atlet||[]).filter(x=>String(x.ID)!==String(id));
+    DB.kehadiran=(DB.kehadiran||[]).filter(x=>String(x["ATLET ID"])!==String(id));
+    DB.penyertaan=(DB.penyertaan||[]).filter(x=>String(x["ATLET ID"])!==String(id));
+    DB.failAtlet=(DB.failAtlet||[]).filter(x=>String(x["ATLET ID"])!==String(id));
+    toast("Atlet dipadam"); go("kehadiran");
+  }catch(e){ toastRalat(e); }
+}
+
 
 /* ---------- 5. Senarai Acara ---------- */
 function vAcara(){
@@ -644,12 +702,12 @@ function itemAcaraDetail(n,p,info,boleh,t){
   const a=atletById(p["ATLET ID"])||{"NAMA PENUH":p["NAMA ATLET"],KATEGORI:p.KATEGORI,SEKOLAH:p.SEKOLAH,ID:p["ATLET ID"]};
   const b=terbaik(n,p["ATLET ID"]), hadir=hadirHariIni(p["ATLET ID"],t);
   const rHariIni=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t)
-    .sort((x,y)=>fmtMasa(x.MASA).localeCompare(fmtMasa(y.MASA)));
+    .sort((x,y)=>masaKunci(x.MASA).localeCompare(masaKunci(y.MASA)));
   const chips=rHariIni.length
     ? `<div style="margin-top:6px">${rHariIni.map(r=>`<span class="pill">${esc(r.KEPUTUSAN)}</span>`).join("")}</div>`
     : "";
   return `<div class="item" id="ad-${esc(n)}-${esc(p["ATLET ID"])}">
-    <img class="av" src="${avatar(a)}"/>
+    <img class="av" src="${avatar(a)}" ${avErr(a)}/>
     <div style="flex:1" onclick="go('profil',{id:'${esc(p["ATLET ID"])}'})">
       <div class="nm">${esc(p["NAMA ATLET"])}</div>
       <div class="sub">${esc(p.KATEGORI)} • ${esc(p.SEKOLAH)}</div>
@@ -751,7 +809,7 @@ function vProfil(){
   const fl=failAtletList(a.ID);
   app().innerHTML=`${topbar("Profil Atlet","kehadiran")}
   <div class="card" style="text-align:center">
-    <img class="av" style="width:120px;height:120px;border-radius:34px" src="${avatar(a)}"/>
+    <img class="av" style="width:120px;height:120px;border-radius:34px" src="${avatar(a)}" ${avErr(a)}/>
     <h2 style="margin-top:10px">${esc(a["NAMA PENUH"])}</h2>
     <div><span class="chip">${esc(a.KATEGORI)}</span><span class="chip">${esc(a.JANTINA)}</span><span class="chip">${esc(a.SEKOLAH)}</span></div>
     <div class="small" style="margin-top:8px">No IC: ${esc(a["NO IC"]||"-")}</div>
@@ -764,6 +822,7 @@ function vProfil(){
     <div class="row" style="margin-top:12px;gap:8px">
       <button class="btn sm ghost" onclick="formGambarAtlet('${esc(a.ID)}')">📷 Kemas Gambar</button>
       <button class="btn sm ghost" onclick="formAtlet('${esc(a.ID)}')">✎ Maklumat</button>
+      ${bolehUrusAtlet()?`<button class="btn sm bad" onclick="padamAtlet('${esc(a.ID)}')">🗑 Padam Atlet</button>`:""}
     </div>
   </div>
 
@@ -938,7 +997,7 @@ function vDashboard(){
         const a=atletById(r.id)||{JANTINA:""};
         return `<div class="item" onclick="go('profil',{id:'${esc(r.id)}'})">
           <div class="rank ${i===0?"g1":i===1?"g2":i===2?"g3":""}">${i+1}</div>
-          <img class="av" src="${avatar(a)}"/>
+          <img class="av" src="${avatar(a)}" ${avErr(a)}/>
           <div style="flex:1"><div class="nm">${esc(r.nama)}</div><div class="sub">${esc(r.kategori)} • ${esc(r.sekolah)} • ${r.n} rekod</div></div>
           <div class="right"><div class="nm" style="color:var(--p2)">${r.purata.toFixed(2)}</div><div class="sub">purata ${esc(info.UNIT)}</div><div class="sub">terbaik ${r.terbaik.toFixed(2)}</div></div>
         </div>`;
@@ -948,9 +1007,160 @@ function vDashboard(){
   app().innerHTML=`${topbar("Dashboard Ranking","home")}
   <div class="tabs">${list.map(a=>`<button class="${a.ACARA===dAcara?"on":""}" onclick="dAcara='${esc(a.ACARA)}';render()">${esc(a.ACARA)}</button>`).join("")}</div>
   ${katTabs}
-  <div class="card"><div class="small">Ranking <b>mengikut kategori</b> berdasarkan <b>purata pencapaian</b> ${info.JENIS==="MASA"?"(masa terendah = terbaik)":"(jarak tertinggi = terbaik)"} bagi acara <b>${esc(dAcara||"-")}</b>.</div></div>
+  <div class="card">
+    <div class="small">Ranking <b>mengikut kategori</b> berdasarkan <b>purata pencapaian</b> ${info.JENIS==="MASA"?"(masa terendah = terbaik)":"(jarak tertinggi = terbaik)"} bagi acara <b>${esc(dAcara||"-")}</b>.</div>
+    <hr/>
+    <div class="small" style="margin-bottom:8px"><b>🖨 Cetak Laporan Ranking</b> — pilih format laporan:</div>
+    <div class="row">
+      <button class="btn sm" onclick="cetakLaporan('acara')">📄 Laporan Ikut Acara</button>
+      <button class="btn sm ghost" onclick="cetakLaporan('atlet')">👥 Laporan Ikut Nama Atlet</button>
+    </div>
+  </div>
   ${senarai||`<div class="card small">Tiada rekod untuk acara ini lagi.</div>`}`;
 }
+
+/* ================= LAPORAN RANKING BOLEH CETAK =================
+   mod = "acara"  : Acara → Kategori → kedudukan atlet
+   mod = "atlet"  : Kategori → Nama atlet (A-Z) → pencapaian setiap acara
+   Kedua-duanya kekal tersusun mengikut KATEGORI.                 */
+function kiraRanking(namaAcara){
+  const info=acaraInfo(namaAcara), grp={};
+  rekodAcara(namaAcara).forEach(r=>{
+    const id=String(r["ATLET ID"]); if(!Number(r.NILAI)) return;
+    (grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[]}).v.push(Number(r.NILAI));
+  });
+  const asc=info.JENIS==="MASA";
+  const rank=Object.keys(grp).map(id=>({
+    id,...grp[id],
+    purata:purata(grp[id].v),
+    terbaik:asc?Math.min.apply(null,grp[id].v):Math.max.apply(null,grp[id].v),
+    n:grp[id].v.length
+  }));
+  /* Kedudukan dikira dalam kategori masing-masing */
+  const ikutKat={};
+  rank.forEach(r=>{ (ikutKat[r.kategori]=ikutKat[r.kategori]||[]).push(r); });
+  Object.keys(ikutKat).forEach(k=>{
+    ikutKat[k].sort((a,b)=>asc?a.purata-b.purata:b.purata-a.purata);
+    ikutKat[k].forEach((r,i)=>{ r.kedudukan=i+1; });
+  });
+  return {info,rank,ikutKat,asc};
+}
+
+function gayaLaporan(){
+  return `
+  :root{--ink:#101828;--muted:#667085;--line:#e4e7ec;--brand:#0b3b6f;--brand2:#0f766e;--soft:#f8fafc}
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:var(--ink);margin:0;padding:26px 30px;background:#fff;font-size:12px}
+  .kepala{display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--brand);padding-bottom:14px;margin-bottom:6px}
+  .logo{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;letter-spacing:.5px}
+  .kepala h1{margin:0;font-size:19px;letter-spacing:.3px;color:var(--brand)}
+  .kepala .sub{margin-top:3px;color:var(--muted);font-size:11.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+  .meta span{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:11px;color:#344054}
+  h2.acara{font-size:14px;margin:20px 0 8px;padding:7px 12px;background:var(--brand);color:#fff;border-radius:6px}
+  h3.kat{font-size:12.5px;margin:14px 0 6px;color:var(--brand2);border-left:4px solid var(--brand2);padding-left:8px;text-transform:uppercase;letter-spacing:.4px}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th{background:#eef2f6;color:#1d2939;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:7px 9px;border:1px solid var(--line)}
+  td{padding:6px 9px;border:1px solid var(--line);font-size:11.5px;vertical-align:top}
+  tbody tr:nth-child(even){background:#fbfcfd}
+  td.no{width:38px;text-align:center;font-weight:700;color:var(--brand)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .emas{background:#fff7e0!important}
+  .kosong{color:var(--muted);font-style:italic;padding:8px 2px}
+  .tandatangan{display:flex;gap:60px;margin-top:34px;page-break-inside:avoid}
+  .tandatangan div{flex:1;border-top:1px solid #98a2b3;padding-top:6px;font-size:11px;color:#344054}
+  .kaki{margin-top:22px;border-top:1px solid var(--line);padding-top:8px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
+  .blok{page-break-inside:avoid}
+  @media print{ body{padding:12mm} @page{size:A4 portrait;margin:12mm} .noprint{display:none!important} }
+  .noprint{position:fixed;top:10px;right:12px;display:flex;gap:8px}
+  .noprint button{font:inherit;padding:8px 14px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
+  .noprint button.g{background:#eef2f6;color:#1d2939}`;
+}
+
+function bukaLaporan(tajuk,isi){
+  const kini=new Date();
+  const tarikhCetak=fmtTarikh(kini.toISOString().slice(0,10))+" "+fmtMasa(("0"+kini.getHours()).slice(-2)+":"+("0"+kini.getMinutes()).slice(-2));
+  const html=`<!doctype html><html lang="ms"><head><meta charset="utf-8"/>
+  <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style></head><body>
+  <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
+  <div class="kepala">
+    <div class="logo">AT</div>
+    <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTrack • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
+  </div>
+  <div class="meta">
+    <span><b>Sekolah:</b> ${esc((U&&U.sekolah)||"-")}</span>
+    <span><b>Dijana oleh:</b> ${esc((U&&U.nama)||"-")}</span>
+    <span><b>Tarikh cetak:</b> ${esc(tarikhCetak)}</span>
+  </div>
+  ${isi}
+  <div class="tandatangan">
+    <div>Disediakan oleh (Jurulatih)<br/><br/>Nama &amp; Tandatangan</div>
+    <div>Disemak oleh (Guru Penasihat)<br/><br/>Nama &amp; Tandatangan</div>
+    <div>Disahkan oleh (Pengetua)<br/><br/>Cop &amp; Tandatangan</div>
+  </div>
+  <div class="kaki"><span>AtletTrack — Laporan Rasmi Ranking Atlet</span><span>Dijana ${esc(tarikhCetak)}</span></div>
+  </body></html>`;
+  const w=window.open("","_blank");
+  if(!w) return toast("Sila benarkan pop-up untuk mencetak laporan.");
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+function cetakLaporan(mod){
+  const senaraiAcara=acaraList();
+  if(!senaraiAcara.length) return toast("Tiada acara untuk dilaporkan.");
+
+  if(mod==="acara"){
+    let isi="";
+    senaraiAcara.forEach(ac=>{
+      const n=ac.ACARA, {info,ikutKat}=kiraRanking(n);
+      const kats=Object.keys(ikutKat).sort();
+      isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span></h2>`;
+      if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
+      kats.forEach(k=>{
+        isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet</h3>
+        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Purata (${esc(info.UNIT||"")})</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Rekod</th></tr></thead><tbody>`;
+        ikutKat[k].forEach(r=>{
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${r.purata.toFixed(2)}</td><td class="num">${r.terbaik.toFixed(2)}</td><td class="num">${r.n}</td></tr>`;
+        });
+        isi+=`</tbody></table>`;
+      });
+      isi+=`</div>`;
+    });
+    return bukaLaporan("Laporan Ranking Mengikut Acara",isi);
+  }
+
+  /* mod === "atlet" : kekal tersusun mengikut kategori */
+  const semua={}; /* kategori -> nama atlet -> baris */
+  senaraiAcara.forEach(ac=>{
+    const n=ac.ACARA, {info,ikutKat}=kiraRanking(n);
+    Object.keys(ikutKat).forEach(k=>{
+      ikutKat[k].forEach(r=>{
+        const kat=semua[k]=semua[k]||{};
+        (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
+          acara:n,unit:info.UNIT||"",purata:r.purata,terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length
+        });
+      });
+    });
+  });
+  const kats=Object.keys(semua).sort();
+  if(!kats.length) return toast("Tiada rekod untuk dijana.");
+  let isi="";
+  kats.forEach(k=>{
+    isi+=`<div class="blok"><h2 class="acara">KATEGORI: ${esc(k)}</h2>`;
+    Object.keys(semua[k]).sort((a,b)=>a.localeCompare(b)).forEach(nama=>{
+      const d=semua[k][nama];
+      isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
+      <table><thead><tr><th>Acara</th><th style="text-align:right">Purata</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil. Rekod</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
+      d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${b.purata.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.terbaik.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+      });
+      isi+=`</tbody></table>`;
+    });
+    isi+=`</div>`;
+  });
+  bukaLaporan("Laporan Ranking Mengikut Nama Atlet",isi);
+}
+
 
 /* ---------- 10. Saya / Admin ---------- */
 function vSaya(){
