@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyha6dcEV-U5mmCPLeRq0nyR2TmxqaEfgaAeNDQZadjB7GOOKavrara2wIZEqnP36GzfA/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxY8HJOPFcM5kLZnKrKOj9wHSH5H4FelBO07XpPGBWyZD3YVqGhaNuEGY28t5AX1_CAmg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1027,13 +1027,20 @@ function kiraRanking(namaAcara){
   const info=acaraInfo(namaAcara), grp={};
   rekodAcara(namaAcara).forEach(r=>{
     const id=String(r["ATLET ID"]); if(!Number(r.NILAI)) return;
-    (grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[]}).v.push(Number(r.NILAI));
+    const g=(grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[],rek:[]});
+    g.v.push(Number(r.NILAI));
+    g.rek.push({nilai:Number(r.NILAI),tarikh:r.TARIKH||""});
   });
   const asc=info.JENIS==="MASA";
+  /* Rekod peribadi kejohanan lepas (dari senarai penyertaan) */
+  const rpMap={};
+  penyertaan(namaAcara).forEach(p=>{ const t=String(p["REKOD PERIBADI"]||"").trim(); if(t) rpMap[String(p["ATLET ID"])]=t; });
   const rank=Object.keys(grp).map(id=>({
     id,...grp[id],
     purata:purata(grp[id].v),
     terbaik:asc?Math.min.apply(null,grp[id].v):Math.max.apply(null,grp[id].v),
+    rekodPeribadi:rpMap[id]||"",
+    top3:grp[id].rek.slice().sort((a,b)=>asc?a.nilai-b.nilai:b.nilai-a.nilai).slice(0,3),
     n:grp[id].v.length
   }));
   /* Kedudukan dikira dalam kategori masing-masing */
@@ -1044,6 +1051,14 @@ function kiraRanking(namaAcara){
     ikutKat[k].forEach((r,i)=>{ r.kedudukan=i+1; });
   });
   return {info,rank,ikutKat,asc};
+}
+
+/* Rekod peribadi kejohanan lepas — dipaparkan merah */
+function selRP(r){ return r.rekodPeribadi?`<span class="rp">${esc(r.rekodPeribadi)}</span>`:`<span style="color:#98a2b3">—</span>`; }
+/* 3 rekod terbaik sepanjang tempoh latihan */
+function selTop3(r,unit){
+  if(!r.top3||!r.top3.length) return `<span style="color:#98a2b3">—</span>`;
+  return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${t.nilai.toFixed(2)} ${esc(unit||"")}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
 }
 
 function gayaLaporan(){
@@ -1067,6 +1082,11 @@ function gayaLaporan(){
   td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .emas{background:#fff7e0!important}
   .kosong{color:var(--muted);font-style:italic;padding:8px 2px}
+  .rp{color:#d92d20;font-weight:700;white-space:nowrap}
+  .rp small{color:#d92d20;font-weight:500}
+  .t3{font-size:11px;line-height:1.5}
+  .t3 b{color:var(--brand2)}
+  .t3 span.d{color:var(--muted)}
   .tandatangan{display:flex;gap:60px;margin-top:34px;page-break-inside:avoid}
   .tandatangan div{flex:1;border-top:1px solid #98a2b3;padding-top:6px;font-size:11px;color:#344054}
   .kaki{margin-top:22px;border-top:1px solid var(--line);padding-top:8px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
@@ -1091,6 +1111,11 @@ function bukaLaporan(tajuk,isi){
     <span><b>Sekolah:</b> ${esc((U&&U.sekolah)||"-")}</span>
     <span><b>Dijana oleh:</b> ${esc((U&&U.nama)||"-")}</span>
     <span><b>Tarikh cetak:</b> ${esc(tarikhCetak)}</span>
+  </div>
+  <div class="meta" style="margin-top:-8px">
+    <span><b style="color:#d92d20">Merah</b> = rekod peribadi pada kejohanan lepas</span>
+    <span>Acara larian: masa <b>terpantas</b> = terbaik</span>
+    <span>Acara padang: jarak <b>terjauh</b> = terbaik</span>
   </div>
   ${isi}
   <div class="tandatangan">
@@ -1118,9 +1143,9 @@ function cetakLaporan(mod){
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
         isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet</h3>
-        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Purata (${esc(info.UNIT||"")})</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Rekod</th></tr></thead><tbody>`;
+        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
-          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${r.purata.toFixed(2)}</td><td class="num">${r.terbaik.toFixed(2)}</td><td class="num">${r.n}</td></tr>`;
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT)}</td><td class="num">${r.terbaik.toFixed(2)} ${esc(info.UNIT||"")}</td><td class="num">${r.n}</td></tr>`;
         });
         isi+=`</tbody></table>`;
       });
@@ -1137,7 +1162,8 @@ function cetakLaporan(mod){
       ikutKat[k].forEach(r=>{
         const kat=semua[k]=semua[k]||{};
         (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
-          acara:n,unit:info.UNIT||"",purata:r.purata,terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length
+          acara:n,unit:info.UNIT||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
+          rekodPeribadi:r.rekodPeribadi,top3:r.top3
         });
       });
     });
@@ -1150,9 +1176,9 @@ function cetakLaporan(mod){
     Object.keys(semua[k]).sort((a,b)=>a.localeCompare(b)).forEach(nama=>{
       const d=semua[k][nama];
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
-      <table><thead><tr><th>Acara</th><th style="text-align:right">Purata</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil. Rekod</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
+      <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${b.purata.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.terbaik.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit)}</td><td class="num">${b.terbaik.toFixed(2)} ${esc(b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
