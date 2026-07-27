@@ -1,5 +1,5 @@
 /*************************************************************
- * AtletTrack — Code.gs
+ * AtletTrack — Code.gs  (versi kemaskini)
  * Pangkalan data TUNGGAL: Google Sheet ini.
  * Cara pasang:
  *  1. Buka Google Sheet baharu > Extensions > Apps Script
@@ -16,6 +16,7 @@ var SHEET_KEHADIRAN = "KEHADIRAN";
 var SHEET_ACARA = "ACARA";
 var SHEET_JURULATIH = "JURULATIH_ACARA";
 var SHEET_PENYERTAAN = "PENYERTAAN";
+var SHEET_FAIL = "FAIL_ATLET";
 var PREFIX_REKOD = "REKOD_";
 
 /* ID FOLDER GOOGLE DRIVE untuk simpan gambar atlet.
@@ -23,6 +24,8 @@ var PREFIX_REKOD = "REKOD_";
    Biarkan kosong ("") jika mahu skrip cipta folder "GAMBAR ATLET" secara automatik. */
 var FOLDER_GAMBAR_ID = "1Nz0S__dRbA4vP4Ca0xBRhpdPNUj4KVOf";
 var NAMA_FOLDER_GAMBAR = "GAMBAR ATLET";
+var NAMA_FOLDER_FAIL = "FAIL ATLET";
+var MAX_FAIL_ATLET = 5;
 
 var ADMIN_EMEL = "admin";
 var ADMIN_KATA_LALUAN = "101010";
@@ -35,6 +38,7 @@ HEADERS[SHEET_KEHADIRAN] = ["ID", "TARIKH", "ATLET ID", "NAMA ATLET", "KATEGORI"
 HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "AKTIF"];
 HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
 HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
+HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
 var HEADER_REKOD = ["ID", "TARIKH", "MASA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "KEPUTUSAN", "NILAI", "CATATAN", "DICATAT OLEH", "TARIKH & MASA REKOD"];
 
 var ACARA_LALAI = [
@@ -104,16 +108,25 @@ function tarikhStr(v) {
 }
 
 /* ---------------- Setup ---------------- */
+var _SETUP_DONE = false;
 function setupPangkalanData() {
   dapatSheet(SHEET_GURU, HEADERS[SHEET_GURU], "#4f2df5");
   dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
   dapatSheet(SHEET_KEHADIRAN, HEADERS[SHEET_KEHADIRAN], "#0f9d58");
   dapatSheet(SHEET_JURULATIH, HEADERS[SHEET_JURULATIH], "#ff6d00");
   dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  dapatSheet(SHEET_FAIL, HEADERS[SHEET_FAIL], "#0aa5d6");
   var sa = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
   if (sa.getLastRow() < 2) sa.getRange(2, 1, ACARA_LALAI.length, 4).setValues(ACARA_LALAI);
   baca(SHEET_ACARA).forEach(function (a) { if (a["ACARA"]) sheetRekod(a["ACARA"]); });
+  _SETUP_DONE = true;
   return "Siap. Semua sheet telah dibina.";
+}
+function setupSekaliSahaja() {
+  if (_SETUP_DONE) return;
+  // sanity check only
+  if (!ss().getSheetByName(SHEET_ATLET) || !ss().getSheetByName(SHEET_FAIL)) setupPangkalanData();
+  else _SETUP_DONE = true;
 }
 
 /* ---------------- Auth ---------------- */
@@ -145,7 +158,7 @@ function login(p) {
 
 /* ---------------- Data utama ---------------- */
 function semuaData(p) {
-  setupPangkalanData();
+  setupSekaliSahaja();
   var acara = baca(SHEET_ACARA).filter(function (a) { return a["ACARA"]; });
   var rekod = {};
   acara.forEach(function (a) { rekod[a["ACARA"]] = baca(namaSheetRekod(a["ACARA"])); });
@@ -157,15 +170,20 @@ function semuaData(p) {
     jurulatih: baca(SHEET_JURULATIH),
     penyertaan: baca(SHEET_PENYERTAAN),
     rekod: rekod,
+    failAtlet: baca(SHEET_FAIL),
     masaPelayan: nowStr()
   };
 }
 
-/* ---------------- Gambar Atlet (Google Drive) ---------------- */
+/* ---------------- Folder Google Drive ---------------- */
 function folderGambar() {
-  if (FOLDER_GAMBAR_ID) return DriveApp.getFolderById(FOLDER_GAMBAR_ID);
+  if (FOLDER_GAMBAR_ID) { try { return DriveApp.getFolderById(FOLDER_GAMBAR_ID); } catch (e) {} }
   var it = DriveApp.getFoldersByName(NAMA_FOLDER_GAMBAR);
   return it.hasNext() ? it.next() : DriveApp.createFolder(NAMA_FOLDER_GAMBAR);
+}
+function folderFail() {
+  var it = DriveApp.getFoldersByName(NAMA_FOLDER_FAIL);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(NAMA_FOLDER_FAIL);
 }
 
 /* p.gambarBase64 = "data:image/jpeg;base64,...."  ATAU base64 mentah
@@ -183,6 +201,44 @@ function muatNaikGambar(p) {
   return { id: fail.getId(), url: "https://drive.google.com/uc?export=view&id=" + fail.getId() };
 }
 
+/* ---------------- Fail Lampiran Atlet ---------------- */
+function senaraiFailAtlet(atletId) {
+  return baca(SHEET_FAIL).filter(function (f) { return String(f["ATLET ID"]) === String(atletId); });
+}
+
+function muatNaikFailAtlet(p) {
+  if (!p || !p.atletId) throw new Error("ID atlet diperlukan.");
+  if (!p.dataBase64) throw new Error("Tiada fail untuk dimuat naik.");
+  var sedia = senaraiFailAtlet(p.atletId);
+  if (sedia.length >= MAX_FAIL_ATLET) throw new Error("Maksima " + MAX_FAIL_ATLET + " fail bagi setiap atlet. Sila padam fail lama dahulu.");
+  var data = String(p.dataBase64), jenis = p.jenis || "application/octet-stream", m = data.match(/^data:([^;]+);base64,(.*)$/);
+  if (m) { jenis = m[1]; data = m[2]; }
+  var bytes = Utilities.base64Decode(data);
+  var nama = String(p.namaFail || "fail").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
+  var blob = Utilities.newBlob(bytes, jenis, p.atletId + "__" + nama);
+  var fail = folderFail().createFile(blob);
+  try { fail.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  var url = "https://drive.google.com/uc?export=view&id=" + fail.getId();
+  var id = idBaharu("F", SHEET_FAIL);
+  dapatSheet(SHEET_FAIL, HEADERS[SHEET_FAIL], "#0aa5d6");
+  ss().getSheetByName(SHEET_FAIL).appendRow([id, p.atletId, nama, jenis, bytes.length, url, fail.getId(), p.olehNama || "", nowStr()]);
+  return { id: id, "ATLET ID": p.atletId, "NAMA FAIL": nama, "JENIS": jenis, "SAIZ (BYTES)": bytes.length, "URL": url, "DRIVE ID": fail.getId() };
+}
+
+function padamFailAtlet(p) {
+  var s = ss().getSheetByName(SHEET_FAIL);
+  if (!s) throw new Error("Tiada rekod fail.");
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(p.id)) {
+      try { DriveApp.getFileById(String(v[i][6])).setTrashed(true); } catch (e) {}
+      s.deleteRow(i + 1);
+      return { ok: true };
+    }
+  }
+  throw new Error("Fail tidak dijumpai.");
+}
+
 function tambahAtlet(p) {
   if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah atlet baharu.");
   dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
@@ -190,7 +246,7 @@ function tambahAtlet(p) {
   var urlGambar = p.gambar || "";
   if (p.gambarBase64) urlGambar = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: id + "_" + String(p.nama).replace(/[^A-Za-z0-9]+/g, "_") }).url;
   ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", urlGambar, p.catatan || "", p.olehNama, nowStr()]);
-  return { id: id };
+  return { id: id, gambar: urlGambar };
 }
 
 function kemaskiniAtlet(p) {
@@ -198,12 +254,17 @@ function kemaskiniAtlet(p) {
   var v = s.getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][0]) === String(p.id)) {
+      // Sokong muat naik gambar semasa kemaskini
+      if (p.gambarBase64) {
+        var g = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: p.id + "_" + nowStr().replace(/[^0-9]/g, "") });
+        p.gambar = g.url;
+      }
       var medan = { nama: 1, noIc: 2, jantina: 3, kategori: 4, sekolah: 5, gambar: 6, catatan: 7 };
-      Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null) v[i][medan[k]] = p[k]; });
+      Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null && p[k] !== "") v[i][medan[k]] = p[k]; });
       v[i][8] = p.olehNama;
       v[i][9] = nowStr();
       s.getRange(i + 1, 1, 1, HEADERS[SHEET_ATLET].length).setValues([v[i].slice(0, HEADERS[SHEET_ATLET].length)]);
-      return { ok: true };
+      return { ok: true, gambar: v[i][6] };
     }
   }
   throw new Error("Atlet tidak dijumpai.");
@@ -273,8 +334,17 @@ function simpanRekodLatihan(p) {
   if (!hadir) throw new Error("Kehadiran atlet pada " + tarikh + " belum ditanda. Rekod latihan tidak boleh diambil.");
   var s = sheetRekod(p.acara);
   var masa = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss");
-  s.appendRow([idBaharu("R", s.getName()), tarikh, masa, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, nowStr()]);
-  return { ok: true };
+  var id = idBaharu("R", s.getName());
+  var tms = nowStr();
+  s.appendRow([id, tarikh, masa, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, tms]);
+  return {
+    ok: true,
+    rekod: {
+      "ID": id, "TARIKH": tarikh, "MASA": masa, "ATLET ID": p.atletId, "NAMA ATLET": p.nama,
+      "KATEGORI": p.kategori || "", "SEKOLAH": p.sekolah || "", "KEPUTUSAN": p.keputusan,
+      "NILAI": Number(p.nilai) || "", "CATATAN": p.catatan || "", "DICATAT OLEH": p.olehNama, "TARIKH & MASA REKOD": tms
+    }
+  };
 }
 
 function tambahAcara(p) {
@@ -295,6 +365,8 @@ var TINDAKAN = {
   login: login,
   data: semuaData,
   muatNaikGambar: muatNaikGambar,
+  muatNaikFailAtlet: muatNaikFailAtlet,
+  padamFailAtlet: padamFailAtlet,
   tambahAtlet: tambahAtlet,
   kemaskiniAtlet: kemaskiniAtlet,
   kehadiran: simpanKehadiran,
@@ -313,14 +385,13 @@ function balas(obj, callback) {
   return ContentService.createTextOutput(teks).setMimeType(ContentService.MimeType.JSON);
 }
 
-/* Klasifikasi ralat supaya teknision mudah mengesan punca masalah */
 function kodRalat(mesej) {
   var m = String(mesej || "").toLowerCase();
-  if (m.indexOf("tindakan tidak sah") >= 0) return "DB-100";           // aksi tidak dikenali
-  if (m.indexOf("kata laluan") >= 0 || m.indexOf("emel") >= 0) return "DB-200"; // pengesahan
-  if (m.indexOf("hanya") >= 0 || m.indexOf("maksima") >= 0) return "DB-300";    // kebenaran / had
-  if (m.indexOf("kehadiran") >= 0) return "DB-400";                    // peraturan kehadiran
-  if (m.indexOf("tidak dijumpai") >= 0 || m.indexOf("sudah") >= 0) return "DB-500"; // data
+  if (m.indexOf("tindakan tidak sah") >= 0) return "DB-100";
+  if (m.indexOf("kata laluan") >= 0 || m.indexOf("emel") >= 0) return "DB-200";
+  if (m.indexOf("hanya") >= 0 || m.indexOf("maksima") >= 0) return "DB-300";
+  if (m.indexOf("kehadiran") >= 0) return "DB-400";
+  if (m.indexOf("tidak dijumpai") >= 0 || m.indexOf("sudah") >= 0) return "DB-500";
   if (m.indexOf("sheet") >= 0 || m.indexOf("range") >= 0 || m.indexOf("lajur") >= 0) return "DB-006";
   if (m.indexOf("permission") >= 0 || m.indexOf("authoriz") >= 0) return "DB-007";
   if (m.indexOf("lock") >= 0 || m.indexOf("timeout") >= 0) return "DB-002";
@@ -340,16 +411,22 @@ function logRalat(payload, err) {
     sh.appendRow([new Date(), kodRalat(err && err.message), (payload && payload.action) || "-",
       String((err && err.message) || err), (payload && payload.olehEmel) || "-",
       String((err && err.stack) || "").slice(0, 900)]);
-  } catch (x) { /* jangan biarkan log gagal menghalang balasan */ }
+  } catch (x) {}
 }
+
+/* Aksi ringan tidak perlu Script Lock — bolehkan parallelism supaya kehadiran laju */
+var TANPA_LOCK = { ping: 1, data: 1, login: 1 };
 
 function proses(payload, callback) {
   var mula = new Date().getTime();
   try {
     var fn = TINDAKAN[payload.action];
     if (!fn) throw new Error("Tindakan tidak sah: " + payload.action);
+    if (TANPA_LOCK[payload.action]) {
+      return balas({ ok: true, data: fn(payload), ms: new Date().getTime() - mula }, callback);
+    }
     var lock = LockService.getScriptLock();
-    lock.waitLock(25000);
+    lock.waitLock(15000);
     try { return balas({ ok: true, data: fn(payload), ms: new Date().getTime() - mula }, callback); }
     finally { lock.releaseLock(); }
   } catch (err) {
