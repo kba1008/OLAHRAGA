@@ -1,36 +1,37 @@
-const CACHE = 'latihan-pusat-v1';
-const ASSETS = ['./', './index.html', './manifest.json'];
+/* Service Worker - AtletTrack PWA
+   Cache hanya untuk fail aplikasi (shell). SEMUA DATA sentiasa diambil
+   terus (network only) daripada Google Sheet melalui Apps Script. */
+const CACHE = "atlettrack-v1";
+const SHELL = ["./", "./index.html", "./manifest.json"];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+self.addEventListener("install", (e) => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
 });
 
-self.addEventListener('activate', (e) => {
+self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await self.clients.claim();
+    })(),
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  const url = new URL(req.url);
-  // Never cache Apps Script API calls
-  if (url.hostname.includes('script.google.com')) {
-    return;
-  }
-  if (req.method !== 'GET') return;
+self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  // Jangan sekali-kali cache panggilan data (Google Apps Script / Sheet).
+  if (url.hostname.includes("google.com") || url.hostname.includes("googleusercontent.com")) return;
+  if (e.request.method !== "GET") return;
+
   e.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req).then((res) => {
-        if (res && res.status === 200 && res.type === 'basic') {
-          const clone = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, clone));
-        }
+    fetch(e.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
         return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+      })
+      .catch(() => caches.match(e.request).then((r) => r || caches.match("./index.html"))),
   );
 });

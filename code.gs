@@ -1,254 +1,309 @@
-/**
- * LATIHAN PUSAT OLAHRAGA - Backend Google Apps Script
- * ---------------------------------------------------
+/*************************************************************
+ * AtletTrack — Code.gs
+ * Pangkalan data TUNGGAL: Google Sheet ini.
  * Cara pasang:
- *  1. Buka https://script.google.com > New Project
- *  2. Ganti isi Code.gs dengan fail ini
- *  3. Klik Run > setup (benarkan akses)
+ *  1. Buka Google Sheet baharu > Extensions > Apps Script
+ *  2. Tampal fail ini, Save.
+ *  3. Run fungsi  setupPangkalanData()  (beri kebenaran).
  *  4. Deploy > New deployment > Web app
- *     - Execute as: Me
- *     - Who has access: Anyone
- *  5. Salin Web App URL, letakkan dalam index.html (const API_URL = ...)
- *
- * Struktur Google Sheet (dibuat automatik):
- *   - GURU          : nama, email, password, jawatan, sekolah, telefon, role, daftar_pada
- *   - ALTELIT       : nama, ic, jantina, kategori, sekolah, foto, rekod_peribadi(JSON), didaftar_oleh, pada
- *   - KEHADIRAN     : tarikh, nama_altelit, catat_oleh, masa
- *   - ACARA_JURULATIH: acara, senarai_jurulatih(JSON, max 10)
- *   - Satu sheet setiap acara (contoh: "100 M", "LOMPAT JAUH"):
- *       tarikh, masa, nama_altelit, kategori, sekolah, rekod, catat_oleh
- */
+ *       Execute as: Me     |    Who has access: Anyone
+ *  5. Salin URL /exec dan tampal dalam skrin "Sambung Pangkalan Data" pada app.
+ *************************************************************/
 
-var SHEET_ID = ''; // kosongkan untuk cipta baharu automatik pada run pertama
-var MASTER_PW = '101010';
-var ACARA_LIST = ['100 M','200 M','400 M','800 M','1500 M','LOMPAT JAUH','LOMPAT TINGGI','LONTAR PELURU','LEMPAR CAKERA','REJAM LEMBING'];
+var SHEET_GURU = "GURU";
+var SHEET_ATLET = "ATLET";
+var SHEET_KEHADIRAN = "KEHADIRAN";
+var SHEET_ACARA = "ACARA";
+var SHEET_JURULATIH = "JURULATIH_ACARA";
+var SHEET_PENYERTAAN = "PENYERTAAN";
+var PREFIX_REKOD = "REKOD_";
 
-function setup() {
-  var ss = getSS();
-  ensureSheet(ss, 'GURU', ['nama','email','password','jawatan','sekolah','telefon','role','daftar_pada']);
-  ensureSheet(ss, 'ALTELIT', ['nama','ic','jantina','kategori','sekolah','foto','rekod_peribadi','didaftar_oleh','pada']);
-  ensureSheet(ss, 'KEHADIRAN', ['tarikh','nama_altelit','catat_oleh','masa']);
-  ensureSheet(ss, 'ACARA_JURULATIH', ['acara','senarai_jurulatih']);
-  ACARA_LIST.forEach(function(a){
-    ensureSheet(ss, a, ['tarikh','masa','nama_altelit','kategori','sekolah','rekod','catat_oleh']);
-  });
-  Logger.log('Setup selesai. Sheet ID: ' + ss.getId());
-  return ss.getId();
+var ADMIN_EMEL = "admin";
+var ADMIN_KATA_LALUAN = "101010";
+var MAX_JURULATIH = 10;
+
+var HEADERS = {};
+HEADERS[SHEET_GURU] = ["ID", "NAMA PENUH", "EMEL", "KATA LALUAN", "JAWATAN", "SEKOLAH", "NO TELEFON", "PERANAN", "TARIKH DAFTAR"];
+HEADERS[SHEET_ATLET] = ["ID", "NAMA PENUH", "NO IC", "JANTINA", "KATEGORI", "SEKOLAH", "GAMBAR (URL)", "CATATAN", "DIDAFTAR OLEH", "TARIKH DAFTAR"];
+HEADERS[SHEET_KEHADIRAN] = ["ID", "TARIKH", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "STATUS", "CATATAN", "DICATAT OLEH", "TARIKH & MASA"];
+HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "AKTIF"];
+HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
+HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
+var HEADER_REKOD = ["ID", "TARIKH", "MASA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "KEPUTUSAN", "NILAI", "CATATAN", "DICATAT OLEH", "TARIKH & MASA REKOD"];
+
+var ACARA_LALAI = [
+  ["100 M", "MASA", "saat", "YA"],
+  ["200 M", "MASA", "saat", "YA"],
+  ["400 M", "MASA", "saat", "YA"],
+  ["800 M", "MASA", "saat", "YA"],
+  ["1500 M", "MASA", "saat", "YA"],
+  ["LOMPAT JAUH", "JARAK", "meter", "YA"],
+  ["LOMPAT TINGGI", "JARAK", "meter", "YA"],
+  ["LONTAR PELURU", "JARAK", "meter", "YA"],
+  ["LEMPAR CAKERA", "JARAK", "meter", "YA"],
+  ["REJAM LEMBING", "JARAK", "meter", "YA"]
+];
+
+/* ---------------- Util ---------------- */
+function ss() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function kemasSheet(sh, header, warna) {
+  sh.getRange(1, 1, 1, header.length).setValues([header]);
+  var hr = sh.getRange(1, 1, 1, header.length);
+  hr.setFontWeight("bold").setFontColor("#ffffff").setBackground(warna || "#4f2df5")
+    .setHorizontalAlignment("center").setVerticalAlignment("middle").setWrap(true);
+  sh.setRowHeight(1, 34);
+  sh.setFrozenRows(1);
+  if (sh.getMaxColumns() > header.length) sh.deleteColumns(header.length + 1, sh.getMaxColumns() - header.length);
+  for (var i = 1; i <= header.length; i++) sh.setColumnWidth(i, 160);
+  sh.getRange(1, 1, sh.getMaxRows(), header.length).setFontFamily("Arial");
 }
 
-function getSS() {
-  var props = PropertiesService.getScriptProperties();
-  var id = SHEET_ID || props.getProperty('SHEET_ID');
-  if (id) {
-    try { return SpreadsheetApp.openById(id); } catch(e){}
+function dapatSheet(nama, header, warna) {
+  var s = ss().getSheetByName(nama);
+  if (!s) { s = ss().insertSheet(nama); kemasSheet(s, header, warna); }
+  else if (s.getLastRow() === 0) kemasSheet(s, header, warna);
+  return s;
+}
+
+function namaSheetRekod(acara) {
+  return (PREFIX_REKOD + String(acara).toUpperCase().replace(/[^A-Z0-9]+/g, "_")).substring(0, 95);
+}
+function sheetRekod(acara) { return dapatSheet(namaSheetRekod(acara), HEADER_REKOD, "#00a3c4"); }
+
+function baca(nama) {
+  var s = ss().getSheetByName(nama);
+  if (!s || s.getLastRow() < 2) return [];
+  var v = s.getDataRange().getValues();
+  var h = v[0], out = [];
+  for (var i = 1; i < v.length; i++) {
+    var o = {}, kosong = true;
+    for (var j = 0; j < h.length; j++) { o[h[j]] = v[i][j]; if (v[i][j] !== "" && v[i][j] !== null) kosong = false; }
+    if (!kosong) out.push(o);
   }
-  var ss = SpreadsheetApp.create('LATIHAN PUSAT OLAHRAGA - Pengkalan Data');
-  props.setProperty('SHEET_ID', ss.getId());
-  return ss;
+  return out;
 }
 
-function ensureSheet(ss, name, headers) {
-  var sh = ss.getSheetByName(name);
-  if (!sh) {
-    sh = ss.insertSheet(name);
-    sh.appendRow(headers);
-    sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#7c3aed').setFontColor('#ffffff');
-    sh.setFrozenRows(1);
+function idBaharu(prefix, sheetNama) {
+  var s = ss().getSheetByName(sheetNama);
+  var n = s && s.getLastRow() > 1 ? s.getLastRow() - 1 : 0;
+  return prefix + ("000" + (n + 1)).slice(-4) + "-" + String(Date.now()).slice(-4);
+}
+
+function nowStr() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"); }
+function hariIni() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"); }
+function tarikhStr(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return String(v || "").substring(0, 10);
+}
+
+/* ---------------- Setup ---------------- */
+function setupPangkalanData() {
+  dapatSheet(SHEET_GURU, HEADERS[SHEET_GURU], "#4f2df5");
+  dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
+  dapatSheet(SHEET_KEHADIRAN, HEADERS[SHEET_KEHADIRAN], "#0f9d58");
+  dapatSheet(SHEET_JURULATIH, HEADERS[SHEET_JURULATIH], "#ff6d00");
+  dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  var sa = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
+  if (sa.getLastRow() < 2) sa.getRange(2, 1, ACARA_LALAI.length, 4).setValues(ACARA_LALAI);
+  baca(SHEET_ACARA).forEach(function (a) { if (a["ACARA"]) sheetRekod(a["ACARA"]); });
+  return "Siap. Semua sheet telah dibina.";
+}
+
+/* ---------------- Auth ---------------- */
+function isAdmin(emel) { return String(emel || "").toLowerCase() === ADMIN_EMEL; }
+
+function cariGuru(emel) {
+  var e = String(emel || "").toLowerCase().trim();
+  var r = baca(SHEET_GURU).filter(function (g) { return String(g["EMEL"]).toLowerCase().trim() === e; });
+  return r.length ? r[0] : null;
+}
+
+function daftarGuru(p) {
+  dapatSheet(SHEET_GURU, HEADERS[SHEET_GURU], "#4f2df5");
+  if (cariGuru(p.emel)) throw new Error("Emel ini telah didaftarkan.");
+  var id = idBaharu("G", SHEET_GURU);
+  ss().getSheetByName(SHEET_GURU).appendRow([id, p.nama, String(p.emel).toLowerCase().trim(), p.kataLaluan, p.jawatan, p.sekolah, p.telefon, "GURU", nowStr()]);
+  return { id: id, nama: p.nama, emel: String(p.emel).toLowerCase().trim(), jawatan: p.jawatan, sekolah: p.sekolah, telefon: p.telefon, peranan: "GURU" };
+}
+
+function login(p) {
+  var emel = String(p.emel || "").toLowerCase().trim();
+  if (emel === ADMIN_EMEL && String(p.kataLaluan) === ADMIN_KATA_LALUAN) {
+    return { id: "ADMIN", nama: "Master Admin", emel: ADMIN_EMEL, jawatan: "Master Admin", sekolah: "-", telefon: "-", peranan: "ADMIN" };
   }
-  return sh;
+  var g = cariGuru(emel);
+  if (!g || String(g["KATA LALUAN"]) !== String(p.kataLaluan)) throw new Error("Emel atau kata laluan salah.");
+  return { id: g["ID"], nama: g["NAMA PENUH"], emel: g["EMEL"], jawatan: g["JAWATAN"], sekolah: g["SEKOLAH"], telefon: g["NO TELEFON"], peranan: g["PERANAN"] || "GURU" };
 }
 
-function doGet(e) { return handle(e); }
-function doPost(e) { return handle(e); }
+/* ---------------- Data utama ---------------- */
+function semuaData(p) {
+  setupPangkalanData();
+  var acara = baca(SHEET_ACARA).filter(function (a) { return a["ACARA"]; });
+  var rekod = {};
+  acara.forEach(function (a) { rekod[a["ACARA"]] = baca(namaSheetRekod(a["ACARA"])); });
+  return {
+    guru: baca(SHEET_GURU).map(function (g) { return { nama: g["NAMA PENUH"], emel: g["EMEL"], jawatan: g["JAWATAN"], sekolah: g["SEKOLAH"], telefon: g["NO TELEFON"] }; }),
+    atlet: baca(SHEET_ATLET),
+    kehadiran: baca(SHEET_KEHADIRAN).map(function (k) { k["TARIKH"] = tarikhStr(k["TARIKH"]); return k; }),
+    acara: acara,
+    jurulatih: baca(SHEET_JURULATIH),
+    penyertaan: baca(SHEET_PENYERTAAN),
+    rekod: rekod,
+    masaPelayan: nowStr()
+  };
+}
 
-function handle(e) {
-  var out = { ok:false };
-  try {
-    var params = (e && e.parameter) || {};
-    if (e && e.postData && e.postData.contents) {
-      try { var body = JSON.parse(e.postData.contents); for (var k in body) params[k]=body[k]; } catch(x){}
+function tambahAtlet(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah atlet baharu.");
+  dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
+  var id = idBaharu("A", SHEET_ATLET);
+  ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", p.gambar || "", p.catatan || "", p.olehNama, nowStr()]);
+  return { id: id };
+}
+
+function kemaskiniAtlet(p) {
+  var s = ss().getSheetByName(SHEET_ATLET);
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(p.id)) {
+      var medan = { nama: 1, noIc: 2, jantina: 3, kategori: 4, sekolah: 5, gambar: 6, catatan: 7 };
+      Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null) v[i][medan[k]] = p[k]; });
+      v[i][8] = p.olehNama;
+      v[i][9] = nowStr();
+      s.getRange(i + 1, 1, 1, HEADERS[SHEET_ATLET].length).setValues([v[i].slice(0, HEADERS[SHEET_ATLET].length)]);
+      return { ok: true };
     }
-    var action = params.action || 'ping';
-    out = ({
-      ping: pingFn, register: registerFn, login: loginFn,
-      listAthletes: listAthletesFn, addAthlete: addAthleteFn,
-      markAttendance: markAttendanceFn, listAttendanceToday: listAttendanceTodayFn,
-      saveRecord: saveRecordFn, listRecords: listRecordsFn, listRecordsByAthlete: listRecordsByAthleteFn,
-      listCoaches: listCoachesFn, setCoaches: setCoachesFn,
-      dashboard: dashboardFn, bulkSeed: bulkSeedFn
-    }[action] || pingFn)(params);
-    out.ok = true;
-  } catch(err) {
-    out = { ok:false, error: String(err) };
   }
-  var callback = (e && e.parameter && e.parameter.callback);
-  var json = JSON.stringify(out);
+  throw new Error("Atlet tidak dijumpai.");
+}
+
+function simpanKehadiran(p) {
+  dapatSheet(SHEET_KEHADIRAN, HEADERS[SHEET_KEHADIRAN], "#0f9d58");
+  var s = ss().getSheetByName(SHEET_KEHADIRAN);
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (tarikhStr(v[i][1]) === p.tarikh && String(v[i][2]) === String(p.atletId)) {
+      s.getRange(i + 1, 7, 1, 4).setValues([[p.status, p.catatan || "", p.olehNama, nowStr()]]);
+      return { ok: true, dikemaskini: true };
+    }
+  }
+  s.appendRow([idBaharu("K", SHEET_KEHADIRAN), p.tarikh, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.status, p.catatan || "", p.olehNama, nowStr()]);
+  return { ok: true };
+}
+
+function lantikJurulatih(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh melantik jurulatih.");
+  dapatSheet(SHEET_JURULATIH, HEADERS[SHEET_JURULATIH], "#ff6d00");
+  var sedia = baca(SHEET_JURULATIH).filter(function (j) { return j["ACARA"] === p.acara; });
+  if (sedia.length >= MAX_JURULATIH) throw new Error("Maksima " + MAX_JURULATIH + " jurulatih bagi setiap acara.");
+  var e = String(p.emel).toLowerCase().trim();
+  if (sedia.some(function (j) { return String(j["EMEL JURULATIH"]).toLowerCase() === e; })) throw new Error("Jurulatih ini sudah dilantik untuk acara tersebut.");
+  ss().getSheetByName(SHEET_JURULATIH).appendRow([p.acara, e, p.nama, p.olehNama, nowStr()]);
+  return { ok: true };
+}
+
+function buangJurulatih(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh membuang jurulatih.");
+  var s = ss().getSheetByName(SHEET_JURULATIH);
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (v[i][0] === p.acara && String(v[i][1]).toLowerCase() === String(p.emel).toLowerCase()) { s.deleteRow(i + 1); return { ok: true }; }
+  }
+  throw new Error("Rekod jurulatih tidak dijumpai.");
+}
+
+function bolehRekod(acara, emel) {
+  if (isAdmin(emel)) return true;
+  var e = String(emel).toLowerCase();
+  return baca(SHEET_JURULATIH).some(function (j) { return j["ACARA"] === acara && String(j["EMEL JURULATIH"]).toLowerCase() === e; });
+}
+
+function tambahPenyertaan(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh menambah atlet ke acara.");
+  var hadir = baca(SHEET_KEHADIRAN).some(function (k) {
+    return tarikhStr(k["TARIKH"]) === (p.tarikh || hariIni()) && String(k["ATLET ID"]) === String(p.atletId) && String(k["STATUS"]).toUpperCase() === "HADIR";
+  });
+  if (!hadir) throw new Error("Kehadiran atlet pada hari ini belum ditanda.");
+  dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  var ada = baca(SHEET_PENYERTAAN).some(function (x) { return x["ACARA"] === p.acara && String(x["ATLET ID"]) === String(p.atletId); });
+  if (ada) throw new Error("Atlet sudah berada dalam acara ini.");
+  ss().getSheetByName(SHEET_PENYERTAAN).appendRow([p.acara, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.rekodPeribadi || "", p.olehNama, nowStr()]);
+  sheetRekod(p.acara);
+  return { ok: true };
+}
+
+function simpanRekodLatihan(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh merekod.");
+  var tarikh = p.tarikh || hariIni();
+  var hadir = baca(SHEET_KEHADIRAN).some(function (k) {
+    return tarikhStr(k["TARIKH"]) === tarikh && String(k["ATLET ID"]) === String(p.atletId) && String(k["STATUS"]).toUpperCase() === "HADIR";
+  });
+  if (!hadir) throw new Error("Kehadiran atlet pada " + tarikh + " belum ditanda. Rekod latihan tidak boleh diambil.");
+  var s = sheetRekod(p.acara);
+  var masa = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss");
+  s.appendRow([idBaharu("R", s.getName()), tarikh, masa, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, nowStr()]);
+  return { ok: true };
+}
+
+function tambahAcara(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah acara.");
+  var s = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
+  var nama = String(p.acara).toUpperCase().trim();
+  if (baca(SHEET_ACARA).some(function (a) { return String(a["ACARA"]).toUpperCase() === nama; })) throw new Error("Acara sudah wujud.");
+  s.appendRow([nama, p.jenis || "MASA", p.unit || "saat", "YA"]);
+  sheetRekod(nama);
+  return { ok: true };
+}
+
+/* ---------------- Router ---------------- */
+var TINDAKAN = {
+  ping: function () { return { ok: true, masa: nowStr() }; },
+  setup: function () { return { mesej: setupPangkalanData() }; },
+  daftar: daftarGuru,
+  login: login,
+  data: semuaData,
+  tambahAtlet: tambahAtlet,
+  kemaskiniAtlet: kemaskiniAtlet,
+  kehadiran: simpanKehadiran,
+  lantikJurulatih: lantikJurulatih,
+  buangJurulatih: buangJurulatih,
+  tambahPenyertaan: tambahPenyertaan,
+  rekod: simpanRekodLatihan,
+  tambahAcara: tambahAcara
+};
+
+function balas(obj, callback) {
+  var teks = JSON.stringify(obj);
   if (callback) {
-    return ContentService.createTextOutput(callback+'('+json+')').setMimeType(ContentService.MimeType.JAVASCRIPT);
+    return ContentService.createTextOutput(callback + "(" + teks + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(teks).setMimeType(ContentService.MimeType.JSON);
 }
 
-function pingFn(){ return { message:'LATIHAN PUSAT API aktif', time:new Date().toISOString() }; }
-
-/* ---- AUTH ---- */
-function registerFn(p) {
-  var sh = ensureSheet(getSS(),'GURU',['nama','email','password','jawatan','sekolah','telefon','role','daftar_pada']);
-  var data = sh.getDataRange().getValues();
-  for (var i=1;i<data.length;i++){ if ((data[i][1]||'').toLowerCase()===String(p.email||'').toLowerCase()) throw 'Email sudah berdaftar'; }
-  var role = (String(p.masterPassword||'') === MASTER_PW) ? 'MASTER_ADMIN' : 'JURULATIH';
-  sh.appendRow([p.nama,p.email,p.password,p.jawatan,p.sekolah,p.telefon,role,new Date()]);
-  return { user:{ nama:p.nama,email:p.email,jawatan:p.jawatan,sekolah:p.sekolah,telefon:p.telefon,role:role } };
-}
-function loginFn(p){
-  var sh = getSS().getSheetByName('GURU'); if(!sh) throw 'Tiada rekod guru';
-  var data = sh.getDataRange().getValues();
-  for (var i=1;i<data.length;i++){
-    if ((data[i][1]||'').toLowerCase()===String(p.email||'').toLowerCase() && String(data[i][2])===String(p.password)){
-      return { user:{ nama:data[i][0],email:data[i][1],jawatan:data[i][3],sekolah:data[i][4],telefon:data[i][5],role:data[i][6] } };
-    }
+function proses(payload, callback) {
+  try {
+    var fn = TINDAKAN[payload.action];
+    if (!fn) throw new Error("Tindakan tidak sah: " + payload.action);
+    var lock = LockService.getScriptLock();
+    lock.waitLock(25000);
+    try { return balas({ ok: true, data: fn(payload) }, callback); }
+    finally { lock.releaseLock(); }
+  } catch (err) {
+    return balas({ ok: false, error: String(err.message || err) }, callback);
   }
-  throw 'Email atau kata laluan salah';
 }
 
-/* ---- ALTELIT ---- */
-function listAthletesFn(){
-  var sh = getSS().getSheetByName('ALTELIT'); if(!sh) return { athletes:[] };
-  var data = sh.getDataRange().getValues(); var out=[];
-  for (var i=1;i<data.length;i++){
-    var rekod={}; try{ rekod=JSON.parse(data[i][6]||'{}'); }catch(x){}
-    out.push({ nama:data[i][0], ic:data[i][1], jantina:data[i][2], kategori:data[i][3], sekolah:data[i][4], foto:data[i][5], rekod:rekod });
-  }
-  return { athletes: out };
-}
-function addAthleteFn(p){
-  if (p.role !== 'MASTER_ADMIN') throw 'Hanya Master Admin boleh tambah altelit';
-  var sh = ensureSheet(getSS(),'ALTELIT',['nama','ic','jantina','kategori','sekolah','foto','rekod_peribadi','didaftar_oleh','pada']);
-  sh.appendRow([p.nama,p.ic||'',p.jantina||'L',p.kategori||'',p.sekolah||'',p.foto||'', JSON.stringify(p.rekod||{}), p.by||'', new Date()]);
-  return { added:true };
+function doGet(e) {
+  var p = e && e.parameter ? e.parameter : {};
+  if (p.payload) { try { p = JSON.parse(p.payload); } catch (x) {} }
+  if (!p.action) p.action = "ping";
+  return proses(p, (e && e.parameter && e.parameter.callback) || null);
 }
 
-/* ---- KEHADIRAN ---- */
-function markAttendanceFn(p){
-  var sh = ensureSheet(getSS(),'KEHADIRAN',['tarikh','nama_altelit','catat_oleh','masa']);
-  var tarikh = p.tarikh || Utilities.formatDate(new Date(), Session.getScriptTimeZone(),'yyyy-MM-dd');
-  // Buang rekod hari itu untuk altelit tersebut (elak dup)
-  var data = sh.getDataRange().getValues();
-  for (var i=data.length-1;i>=1;i--){
-    var t = data[i][0]; var ts = (t instanceof Date) ? Utilities.formatDate(t,Session.getScriptTimeZone(),'yyyy-MM-dd') : String(t);
-    if (ts===tarikh && data[i][1]===p.nama) sh.deleteRow(i+1);
-  }
-  sh.appendRow([tarikh, p.nama, p.by||'', new Date()]);
-  return { marked:true };
-}
-function listAttendanceTodayFn(p){
-  var sh = getSS().getSheetByName('KEHADIRAN'); if(!sh) return { hadir:[] };
-  var tarikh = p.tarikh || Utilities.formatDate(new Date(), Session.getScriptTimeZone(),'yyyy-MM-dd');
-  var data = sh.getDataRange().getValues(); var out=[];
-  for (var i=1;i<data.length;i++){
-    var t = data[i][0]; var ts = (t instanceof Date) ? Utilities.formatDate(t,Session.getScriptTimeZone(),'yyyy-MM-dd') : String(t);
-    if (ts===tarikh) out.push({ nama:data[i][1], by:data[i][2], masa:data[i][3] });
-  }
-  return { hadir: out, tarikh: tarikh };
-}
-
-/* ---- REKOD LATIHAN ---- */
-function saveRecordFn(p){
-  // pastikan altelit hadir hari ini
-  var tarikh = Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
-  var kh = getSS().getSheetByName('KEHADIRAN'); var hadir=false;
-  if (kh){ var d=kh.getDataRange().getValues();
-    for (var i=1;i<d.length;i++){ var t=d[i][0]; var ts=(t instanceof Date)?Utilities.formatDate(t,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(t);
-      if (ts===tarikh && d[i][1]===p.nama){ hadir=true; break; } } }
-  if (!hadir) throw 'Altelit belum ditandai hadir hari ini';
-
-  // pastikan jurulatih dibenarkan untuk acara ini (jika ada senarai)
-  var cs = getSS().getSheetByName('ACARA_JURULATIH');
-  if (cs){
-    var cd = cs.getDataRange().getValues();
-    for (var j=1;j<cd.length;j++){
-      if (cd[j][0]===p.acara){
-        var list=[]; try{ list=JSON.parse(cd[j][1]||'[]'); }catch(x){}
-        if (list.length>0 && p.byRole!=='MASTER_ADMIN' && list.indexOf(p.byEmail)<0) throw 'Anda bukan jurulatih untuk acara ini';
-        break;
-      }
-    }
-  }
-  var sh = ensureSheet(getSS(),p.acara,['tarikh','masa','nama_altelit','kategori','sekolah','rekod','catat_oleh']);
-  sh.appendRow([tarikh, new Date(), p.nama, p.kategori||'', p.sekolah||'', p.rekod, p.by||'']);
-  return { saved:true };
-}
-function listRecordsFn(p){
-  var sh = getSS().getSheetByName(p.acara); if(!sh) return { rekod:[] };
-  var d = sh.getDataRange().getValues(); var out=[];
-  for (var i=1;i<d.length;i++) out.push({ tarikh:formatDT(d[i][0]), masa:formatDT(d[i][1]), nama:d[i][2], kategori:d[i][3], sekolah:d[i][4], rekod:d[i][5], by:d[i][6] });
-  return { rekod: out.reverse() };
-}
-function listRecordsByAthleteFn(p){
-  var out={}; ACARA_LIST.forEach(function(a){
-    var sh=getSS().getSheetByName(a); if(!sh) return;
-    var d=sh.getDataRange().getValues(); var arr=[];
-    for (var i=1;i<d.length;i++){ if (d[i][2]===p.nama) arr.push({ tarikh:formatDT(d[i][0]), rekod:d[i][5], by:d[i][6] }); }
-    if (arr.length) out[a]=arr;
-  });
-  return { rekod: out };
-}
-function formatDT(v){
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm');
-  return String(v||'');
-}
-
-/* ---- JURULATIH ACARA ---- */
-function listCoachesFn(){
-  var sh = ensureSheet(getSS(),'ACARA_JURULATIH',['acara','senarai_jurulatih']);
-  var d = sh.getDataRange().getValues(); var m={};
-  for (var i=1;i<d.length;i++){ try{ m[d[i][0]]=JSON.parse(d[i][1]||'[]'); }catch(x){ m[d[i][0]]=[]; } }
-  return { coaches:m };
-}
-function setCoachesFn(p){
-  if (p.role!=='MASTER_ADMIN') throw 'Hanya Master Admin';
-  var arr = (p.list||[]).slice(0,10);
-  var sh = ensureSheet(getSS(),'ACARA_JURULATIH',['acara','senarai_jurulatih']);
-  var d = sh.getDataRange().getValues(); var found=false;
-  for (var i=1;i<d.length;i++){ if (d[i][0]===p.acara){ sh.getRange(i+1,2).setValue(JSON.stringify(arr)); found=true; break; } }
-  if (!found) sh.appendRow([p.acara, JSON.stringify(arr)]);
-  return { saved:true };
-}
-
-/* ---- DASHBOARD ---- */
-function dashboardFn(){
-  var out={};
-  ACARA_LIST.forEach(function(a){
-    var sh=getSS().getSheetByName(a); if(!sh) return;
-    var d=sh.getDataRange().getValues(); var agg={};
-    for (var i=1;i<d.length;i++){
-      var nama=d[i][2]; var v=parseRecord(d[i][5]); if (v===null) continue;
-      if (!agg[nama]) agg[nama]={ sekolah:d[i][4], kategori:d[i][3], sum:0, n:0, best:null };
-      agg[nama].sum+=v; agg[nama].n++;
-      agg[nama].best = (agg[nama].best===null) ? v : (isTimeEvent(a) ? Math.min(agg[nama].best,v) : Math.max(agg[nama].best,v));
-    }
-    var rows=Object.keys(agg).map(function(n){ var x=agg[n]; return { nama:n, sekolah:x.sekolah, kategori:x.kategori, purata:(x.sum/x.n), best:x.best, count:x.n }; });
-    rows.sort(function(a,b){ return isTimeEvent(a.acara)? a.purata-b.purata : b.purata-a.purata; });
-    // sort based on event
-    var time = isTimeEvent(a);
-    rows.sort(function(x,y){ return time ? x.purata-y.purata : y.purata-x.purata; });
-    out[a]=rows;
-  });
-  return { ranking: out };
-}
-function isTimeEvent(a){ return /M$/.test(a); }
-function parseRecord(s){
-  if (s===''||s==null) return null;
-  var m = String(s).match(/([0-9]+(?:\.[0-9]+)?)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
-/* ---- BULK SEED (jalankan sekali dari index) ---- */
-function bulkSeedFn(p){
-  var sh = ensureSheet(getSS(),'ALTELIT',['nama','ic','jantina','kategori','sekolah','foto','rekod_peribadi','didaftar_oleh','pada']);
-  if (sh.getLastRow()>1) return { skipped:true };
-  var arr = p.athletes || [];
-  var rows = arr.map(function(a){ return [a.nama,a.ic||'',a.jantina||'L',a.kategori||'',a.sekolah||'','', JSON.stringify(a.acara||{}),'SEED',new Date()]; });
-  if (rows.length) sh.getRange(2,1,rows.length,9).setValues(rows);
-  return { seeded: rows.length };
+function doPost(e) {
+  var p = {};
+  try { p = JSON.parse(e.postData.contents); } catch (x) { p = (e && e.parameter) || {}; }
+  return proses(p, null);
 }

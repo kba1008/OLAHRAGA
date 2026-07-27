@@ -1,21 +1,17 @@
 {
-  "name": "Latihan Pusat Olahraga",
-  "short_name": "LatihanPusat",
-  "description": "Sistem kehadiran & rekod latihan altelit",
+  "name": "Sistem Kehadiran & Rekod Latihan Atlet",
+  "short_name": "AtletTrack",
+  "description": "Aplikasi kehadiran atlet dan rekod prestasi latihan pusat. Pangkalan data: Google Sheet.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b1220",
-  "theme_color": "#7c3aed",
+  "background_color": "#070b1e",
+  "theme_color": "#4f2df5",
+  "lang": "ms",
   "icons": [
     {
-      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0' stop-color='%237c3aed'/><stop offset='1' stop-color='%2306b6d4'/></linearGradient></defs><rect width='192' height='192' rx='36' fill='url(%23g)'/><text x='96' y='128' font-size='110' text-anchor='middle' font-family='Arial' font-weight='900' fill='white'>LP</text></svg>",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0' stop-color='%237c3aed'/><stop offset='1' stop-color='%2306b6d4'/></linearGradient></defs><rect width='512' height='512' rx='96' fill='url(%23g)'/><text x='256' y='340' font-size='280' text-anchor='middle' font-family='Arial' font-weight='900' fill='white'>LP</text></svg>",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiM2ZDI4ZjkiLz48c3RvcCBvZmZzZXQ9Ii41IiBzdG9wLWNvbG9yPSIjMDBjNmZmIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZmYyZDk1Ii8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMTIiIGZpbGw9InVybCgjZykiLz48dGV4dCB4PSI1MCUiIHk9IjYyJSIgZm9udC1zaXplPSIyMjAiIGZvbnQtZmFtaWx5PSJBcmlhbCxIZWx2ZXRpY2Esc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkFUPC90ZXh0Pjwvc3ZnPg==",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
