@@ -101,8 +101,10 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    Tiada data disimpan dalam app kecuali sesi log masuk peranti.
    ============================================================ */
+/* === URL GOOGLE APPS SCRIPT (PANGKALAN DATA GOOGLE SHEET) === */
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbwOXzgsux3k3iUWN8rxN_NWsx5sPXR-9JRlZhoXUCSXx4U14EEDRgHFszQBg3Su9ysT/exec";
 const LS_API="at_api_url", LS_USER="at_user";
-let API=localStorage.getItem(LS_API)||"";
+let API=localStorage.getItem(LS_API)||API_URL_LALAI;
 let U=null; try{U=JSON.parse(localStorage.getItem(LS_USER)||"null")}catch(e){}
 let DB=null, VIEW="home", CTX={};
 
@@ -161,7 +163,7 @@ async function muat(){
   try{ DB=await api("data"); render(); }
   catch(e){ app().innerHTML=`<div class="card"><h2>Gagal memuatkan data</h2><p class="small">${esc(e.message)}</p><button class="btn" onclick="muat()">Cuba lagi</button><button class="btn ghost" onclick="tetapApi()">Tukar URL Google Sheet</button></div>`; }
 }
-function tetapApi(){ localStorage.removeItem(LS_API); API=""; render(); }
+function tetapApi(){ localStorage.removeItem(LS_API); API=API_URL_LALAI; render(); }
 function logout(){ localStorage.removeItem(LS_USER); U=null; DB=null; VIEW="home"; render(); }
 function go(v,c={}){ VIEW=v; CTX=c; window.scrollTo(0,0); render(); }
 
@@ -194,7 +196,7 @@ function skrinApi(){
     <h3 style="margin-top:10px">URL Google Apps Script</h3>
     <p class="small">Buka Google Sheet anda → Extensions → Apps Script → tampal <b>code.gs</b> → Run <b>setupPangkalanData</b> → Deploy sebagai <b>Web app</b> (Anyone). Tampal URL <code>/exec</code> di bawah.</p>
     <label>URL Web App</label>
-    <input id="u" placeholder="https://script.google.com/macros/s/..../exec" />
+    <input id="u" value="${esc(API_URL_LALAI)}" placeholder="https://script.google.com/macros/s/..../exec" />
     <button class="btn" onclick="simpanApi()">Sambung</button>
   </div>`;
 }

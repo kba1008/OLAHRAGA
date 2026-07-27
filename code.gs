@@ -18,6 +18,12 @@ var SHEET_JURULATIH = "JURULATIH_ACARA";
 var SHEET_PENYERTAAN = "PENYERTAAN";
 var PREFIX_REKOD = "REKOD_";
 
+/* ID FOLDER GOOGLE DRIVE untuk simpan gambar atlet.
+   Ambil dari URL folder: https://drive.google.com/drive/folders/<ID_INI>
+   Biarkan kosong ("") jika mahu skrip cipta folder "GAMBAR ATLET" secara automatik. */
+var FOLDER_GAMBAR_ID = "";
+var NAMA_FOLDER_GAMBAR = "GAMBAR ATLET";
+
 var ADMIN_EMEL = "admin";
 var ADMIN_KATA_LALUAN = "101010";
 var MAX_JURULATIH = 10;
@@ -155,11 +161,35 @@ function semuaData(p) {
   };
 }
 
+/* ---------------- Gambar Atlet (Google Drive) ---------------- */
+function folderGambar() {
+  if (FOLDER_GAMBAR_ID) return DriveApp.getFolderById(FOLDER_GAMBAR_ID);
+  var it = DriveApp.getFoldersByName(NAMA_FOLDER_GAMBAR);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(NAMA_FOLDER_GAMBAR);
+}
+
+/* p.gambarBase64 = "data:image/jpeg;base64,...."  ATAU base64 mentah
+   p.namaFail     = nama fail pilihan */
+function muatNaikGambar(p) {
+  if (!p || !p.gambarBase64) throw new Error("Tiada gambar untuk dimuat naik.");
+  var data = String(p.gambarBase64);
+  var jenis = "image/jpeg";
+  var m = data.match(/^data:([^;]+);base64,(.*)$/);
+  if (m) { jenis = m[1]; data = m[2]; }
+  var nama = (p.namaFail || ("ATLET_" + nowStr().replace(/[^0-9]/g, ""))) + (jenis.indexOf("png") > -1 ? ".png" : ".jpg");
+  var blob = Utilities.newBlob(Utilities.base64Decode(data), jenis, nama);
+  var fail = folderGambar().createFile(blob);
+  try { fail.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  return { id: fail.getId(), url: "https://drive.google.com/uc?export=view&id=" + fail.getId() };
+}
+
 function tambahAtlet(p) {
   if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah atlet baharu.");
   dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
   var id = idBaharu("A", SHEET_ATLET);
-  ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", p.gambar || "", p.catatan || "", p.olehNama, nowStr()]);
+  var urlGambar = p.gambar || "";
+  if (p.gambarBase64) urlGambar = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: id + "_" + String(p.nama).replace(/[^A-Za-z0-9]+/g, "_") }).url;
+  ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", urlGambar, p.catatan || "", p.olehNama, nowStr()]);
   return { id: id };
 }
 
@@ -264,6 +294,7 @@ var TINDAKAN = {
   daftar: daftarGuru,
   login: login,
   data: semuaData,
+  muatNaikGambar: muatNaikGambar,
   tambahAtlet: tambahAtlet,
   kemaskiniAtlet: kemaskiniAtlet,
   kehadiran: simpanKehadiran,
