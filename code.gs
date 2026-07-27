@@ -354,6 +354,8 @@ function isJurulatihDilantik(emel) {
   return baca(SHEET_JURULATIH).some(function (j) { return String(j["EMEL JURULATIH"]).toLowerCase().trim() === e; });
 }
 function bolehUrusAtlet(emel) { return isAdmin(emel) || isJurulatihDilantik(emel); }
+/* Padam atlet dari keseluruhan sistem — MASTER ADMIN sahaja */
+function bolehPadamAtlet(emel) { return isAdmin(emel); }
 
 function tambahAtlet(p) {
   if (!bolehUrusAtlet(p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik boleh menambah atlet baharu.");
@@ -365,10 +367,10 @@ function tambahAtlet(p) {
   return { id: id, gambar: urlGambar };
 }
 
-/* Padam atlet — hanya Master Admin atau jurulatih yang dilantik.
-   Rekod berkaitan (kehadiran, penyertaan, fail) turut dibersihkan. */
+/* Padam atlet — MASTER ADMIN sahaja.
+   Rekod berkaitan (kehadiran, penyertaan, rekod acara, fail) turut dibersihkan. */
 function padamAtlet(p) {
-  if (!bolehUrusAtlet(p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik boleh memadam atlet.");
+  if (!bolehPadamAtlet(p.olehEmel)) throw new Error("Hanya Master Admin boleh memadam atlet dari keseluruhan sistem.");
   if (!p || !p.id) throw new Error("ID atlet diperlukan.");
   var s = ss().getSheetByName(SHEET_ATLET);
   if (!s) throw new Error("Atlet tidak dijumpai.");
@@ -392,10 +394,61 @@ function padamAtlet(p) {
     }
   } catch (e) {}
 
-  /* Buang kehadiran & penyertaan */
+  /* Buang kehadiran & penyertaan (keluar dari SEMUA acara) */
   buangBarisMengikut(SHEET_KEHADIRAN, 2, p.id);
   buangBarisMengikut(SHEET_PENYERTAAN, 1, p.id);
+  /* Buang semua rekod latihan atlet ini dalam setiap acara */
+  baca(SHEET_ACARA).forEach(function (a) {
+    if (a["ACARA"]) buangBarisMengikut(namaSheetRekod(a["ACARA"]), 3, p.id);
+  });
   return { ok: true };
+}
+
+/* Keluarkan atlet dari SATU acara — jurulatih acara itu atau Master Admin */
+function padamPenyertaan(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh mengeluarkan atlet dari acara.");
+  var s = ss().getSheetByName(SHEET_PENYERTAAN);
+  if (!s) throw new Error("Penyertaan tidak dijumpai.");
+  var v = s.getDataRange().getValues(), jumpa = false;
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === String(p.acara) && String(v[i][1]) === String(p.atletId)) { s.deleteRow(i + 1); jumpa = true; }
+  }
+  if (!jumpa) throw new Error("Atlet tiada dalam acara ini.");
+  if (p.padamRekod) buangBarisMengikut(namaSheetRekod(p.acara), 3, p.atletId);
+  return { ok: true };
+}
+
+/* Kemaskini satu rekod latihan — jurulatih acara itu atau Master Admin */
+function kemaskiniRekod(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh mengedit rekod.");
+  var s = sheetRekod(p.acara);
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(p.id)) {
+      if (p.tarikh) v[i][1] = p.tarikh;
+      if (p.keputusan !== undefined) v[i][7] = p.keputusan;
+      if (p.nilai !== undefined) v[i][8] = Number(p.nilai) || "";
+      if (p.catatan !== undefined) v[i][9] = p.catatan;
+      v[i][10] = p.olehNama;
+      v[i][11] = nowStr();
+      s.getRange(i + 1, 1, 1, HEADER_REKOD.length).setValues([v[i].slice(0, HEADER_REKOD.length)]);
+      var out = {};
+      for (var j = 0; j < HEADER_REKOD.length; j++) out[HEADER_REKOD[j]] = v[i][j];
+      return { ok: true, rekod: out };
+    }
+  }
+  throw new Error("Rekod tidak dijumpai.");
+}
+
+/* Padam satu rekod latihan — jurulatih acara itu atau Master Admin */
+function padamRekod(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh memadam rekod.");
+  var s = sheetRekod(p.acara);
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === String(p.id)) { s.deleteRow(i + 1); return { ok: true }; }
+  }
+  throw new Error("Rekod tidak dijumpai.");
 }
 
 function buangBarisMengikut(namaSheet, indeksLajur, nilai) {
@@ -543,7 +596,10 @@ var TINDAKAN = {
   lantikJurulatih: lantikJurulatih,
   buangJurulatih: buangJurulatih,
   tambahPenyertaan: tambahPenyertaan,
+  padamPenyertaan: padamPenyertaan,
   rekod: simpanRekodLatihan,
+  kemaskiniRekod: kemaskiniRekod,
+  padamRekod: padamRekod,
   tambahAcara: tambahAcara
 };
 

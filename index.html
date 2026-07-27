@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyBuBq83Ynjw5CG5yLzUnc0g3fY1DnQTclF7s5TAcURqsU5Ba7Y2xbHCycm8VPJkF6-Gg/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyJ0g2KvtyuuHh9b9_AKQwrO9RV0xIWz38ojhZF1zmeMdz89-oapHE_gyk6CHYu78fr1A/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -130,6 +130,8 @@ const isAdmin=()=>U&&U.peranan==="ADMIN";
 /* Master Admin ATAU jurulatih yang telah dilantik untuk mana-mana acara */
 const isJurulatihDilantik=()=>!!U&&((typeof DB!=="undefined"&&DB&&DB.jurulatih)||[]).some(j=>String(j["EMEL JURULATIH"]||"").toLowerCase().trim()===String(U.emel||"").toLowerCase().trim());
 const bolehUrusAtlet=()=>isAdmin()||isJurulatihDilantik();
+/* Padam atlet dari keseluruhan sistem — Master Admin sahaja */
+const bolehPadamAtlet=()=>isAdmin();
 
 function toast(m,ms=2400){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),ms)}
 function loading(t="Memuatkan data dari Google Sheet..."){app().innerHTML=`<div class="card" style="text-align:center"><div class="sp"></div><div class="small">${esc(t)}</div></div>`}
@@ -622,7 +624,7 @@ async function simpanAtlet(id){
 
 /* Padam atlet — Master Admin atau jurulatih yang dilantik sahaja */
 async function padamAtlet(id){
-  if(!bolehUrusAtlet()) return toast("Hanya Master Admin atau jurulatih yang dilantik boleh memadam atlet.");
+  if(!bolehPadamAtlet()) return toast("Hanya Master Admin boleh memadam atlet dari keseluruhan sistem.");
   const a=atletById(id); if(!a) return toast("Atlet tidak dijumpai");
   if(!confirm(`Padam atlet "${a["NAMA PENUH"]}"?\n\nSemua rekod kehadiran, penyertaan dan fail atlet ini akan turut dipadam. Tindakan ini tidak boleh dibatalkan.`)) return;
   try{
@@ -631,7 +633,8 @@ async function padamAtlet(id){
     DB.kehadiran=(DB.kehadiran||[]).filter(x=>String(x["ATLET ID"])!==String(id));
     DB.penyertaan=(DB.penyertaan||[]).filter(x=>String(x["ATLET ID"])!==String(id));
     DB.failAtlet=(DB.failAtlet||[]).filter(x=>String(x["ATLET ID"])!==String(id));
-    toast("Atlet dipadam"); go("kehadiran");
+    if(DB.rekod) Object.keys(DB.rekod).forEach(k=>{ DB.rekod[k]=(DB.rekod[k]||[]).filter(x=>String(x["ATLET ID"])!==String(id)); });
+    toast("Atlet dipadam dari semua acara & kehadiran"); go("kehadiran");
   }catch(e){ toastRalat(e); }
 }
 
@@ -742,7 +745,9 @@ function itemAcaraDetail(n,p,info,boleh,t){
   const rHariIni=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t)
     .sort((x,y)=>masaKunci(x.MASA).localeCompare(masaKunci(y.MASA)));
   const chips=rHariIni.length
-    ? `<div style="margin-top:6px">${rHariIni.map(r=>`<span class="pill">${esc(r.KEPUTUSAN)}</span>`).join("")}</div>`
+    ? `<div style="margin-top:6px">${rHariIni.map(r=>boleh
+        ? `<span class="pill" style="cursor:pointer" onclick="event.stopPropagation();formEditRekod('${esc(n)}','${esc(r.ID)}')">${esc(r.KEPUTUSAN)} ✎</span>`
+        : `<span class="pill">${esc(r.KEPUTUSAN)}</span>`).join("")}</div>`
     : "";
   return `<div class="item" id="ad-${esc(n)}-${esc(p["ATLET ID"])}">
     <img class="av" src="${avatar(a)}" ${avErr(a)}/>
@@ -752,8 +757,23 @@ function itemAcaraDetail(n,p,info,boleh,t){
       <div class="sub">Terbaik: <b>${b!==null?fmtNilai(b,info):esc(p["REKOD PERIBADI"]||"Tiada rekod")}</b> ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}</div>
       ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}):</div>${chips}`:""}
     </div>
-    ${boleh?`<button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>`:""}
+    ${boleh?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>
+      <button class="btn sm bad" style="margin-top:6px" onclick="keluarAtletAcara('${esc(n)}','${esc(p["ATLET ID"])}')">✕ Keluar Acara</button></div>`:""}
   </div>`;
+}
+
+/* Keluarkan atlet dari acara — jurulatih acara atau Master Admin */
+async function keluarAtletAcara(n,id){
+  if(!bolehRekod(n)) return toast("Hanya jurulatih acara ini atau Master Admin boleh mengeluarkan atlet.");
+  const a=atletById(id)||{}, nama=a["NAMA PENUH"]||id;
+  if(!confirm(`Keluarkan "${nama}" dari acara ${n}?`)) return;
+  const buangRekod=confirm("Padam sekali semua rekod latihan atlet ini bagi acara "+n+"?\n\nOK = padam rekod, Batal = simpan rekod.");
+  try{
+    await api("padamPenyertaan",{acara:n,atletId:id,padamRekod:buangRekod?1:0,...who()});
+    DB.penyertaan=(DB.penyertaan||[]).filter(x=>!(x.ACARA===n && String(x["ATLET ID"])===String(id)));
+    if(buangRekod && DB.rekod && DB.rekod[n]) DB.rekod[n]=DB.rekod[n].filter(x=>String(x["ATLET ID"])!==String(id));
+    render(); toast("Atlet dikeluarkan dari acara");
+  }catch(e){ toastRalat(e); }
 }
 function kemasItemAD(n,atletId){
   const el=document.getElementById(`ad-${n}-${atletId}`);
@@ -834,11 +854,57 @@ function vSejarah(){
   const n=CTX.acara, info=acaraInfo(n);
   const r=rekodAcara(n).slice().sort((a,b)=>String(b["TARIKH & MASA REKOD"]).localeCompare(String(a["TARIKH & MASA REKOD"])));
   app().innerHTML=`${topbar("Sejarah — "+n,"acara")}
+  ${bolehRekod(n)?`<div class="card small">Anda boleh ✎ edit atau 🗑 padam mana-mana rekod acara ini.</div>`:""}
   ${r.map(x=>`<div class="item"><div style="flex:1">
     <div class="nm">${esc(x["NAMA ATLET"])} — <span style="color:var(--p2)">${esc(x.KEPUTUSAN)}</span></div>
     <div class="sub">${esc(fmtTarikh(x.TARIKH))} ${esc(fmtMasa(x.MASA))} • ${esc(x.KATEGORI)} • ${esc(x.SEKOLAH)}</div>
     ${x.CATATAN?`<div class="sub">📝 ${esc(x.CATATAN)}</div>`:""}
-  </div></div>`).join("")||`<div class="card small">Tiada rekod lagi untuk acara ini (${esc(info.UNIT)}).</div>`}`;
+  </div>${bolehRekod(n)?`<div class="right">
+    <button class="btn sm ghost" onclick="formEditRekod('${esc(n)}','${esc(x.ID)}')">✎</button>
+    <button class="btn sm bad" style="margin-top:6px" onclick="padamRekod('${esc(n)}','${esc(x.ID)}')">🗑</button>
+  </div>`:""}</div>`).join("")||`<div class="card small">Tiada rekod lagi untuk acara ini (${esc(info.UNIT)}).</div>`}`;
+}
+
+/* ---------- Edit / Padam rekod (jurulatih acara & Master Admin) ---------- */
+function rekodById(n,id){ return rekodAcara(n).find(x=>String(x.ID)===String(id)); }
+function formEditRekod(n,id){
+  if(!bolehRekod(n)) return toast("Tiada kebenaran mengedit rekod acara ini.");
+  const x=rekodById(n,id); if(!x) return toast("Rekod tidak dijumpai");
+  const info=acaraInfo(n);
+  overlay(`<div class="big">Edit Rekod</div>
+  <div class="small">${esc(n)} • ${esc(x["NAMA ATLET"])}</div>
+  <label>Tarikh</label><input type="date" id="et" value="${esc(String(x.TARIKH).slice(0,10))}"/>
+  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <input id="ev" inputmode="decimal" value="${esc(x.KEPUTUSAN)}"/>
+  ${info.JENIS==="MASA"?`<div class="small">Acara jarak jauh: tulis <b>1:15.45</b> atau <b>1.15.45</b> (1 minit 15.45 saat). Jangan tukar kepada saat.</div>`:""}
+  <label>Catatan</label><textarea id="ec" rows="2">${esc(x.CATATAN||"")}</textarea>
+  <button class="btn" id="btnE" onclick="simpanEditRekod('${esc(n)}','${esc(id)}')">Simpan Perubahan</button>
+  <button class="btn ghost" onclick="tutup()">Batal</button>`);
+}
+async function simpanEditRekod(n,id){
+  const btn=$("#btnE"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  const info=acaraInfo(n), mentah=$("#ev").value;
+  const nilai=info.JENIS==="MASA"?huraiMasa(mentah):parseFloat(String(mentah).replace(",","."));
+  if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Perubahan";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 15.45 atau 1:15.45)":"Masukkan keputusan yang sah"); }
+  const catatan=($("#ec")&&$("#ec").value.trim())||"";
+  const tarikh=($("#et")&&$("#et").value)||today();
+  try{
+    const r=await api("kemaskiniRekod",{acara:n,id,keputusan:fmtNilai(nilai,info),nilai,catatan,tarikh,...who()});
+    const arr=(DB.rekod&&DB.rekod[n])||[];
+    const i=arr.findIndex(x=>String(x.ID)===String(id));
+    if(i>-1) arr[i]=(r&&r.rekod)?r.rekod:Object.assign({},arr[i],{KEPUTUSAN:fmtNilai(nilai,info),NILAI:nilai,CATATAN:catatan,TARIKH:tarikh});
+    tutup(); render(); toast("Rekod dikemaskini");
+  }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Perubahan";} }
+}
+async function padamRekod(n,id){
+  if(!bolehRekod(n)) return toast("Tiada kebenaran memadam rekod acara ini.");
+  const x=rekodById(n,id); if(!x) return toast("Rekod tidak dijumpai");
+  if(!confirm(`Padam rekod ${x.KEPUTUSAN} bagi ${x["NAMA ATLET"]}?`)) return;
+  try{
+    await api("padamRekod",{acara:n,id,...who()});
+    if(DB.rekod&&DB.rekod[n]) DB.rekod[n]=DB.rekod[n].filter(y=>String(y.ID)!==String(id));
+    render(); toast("Rekod dipadam");
+  }catch(e){ toastRalat(e); }
 }
 
 /* ---------- 8. Profil atlet — dengan Gambar (zoom/pan) + Fail lampiran ---------- */
@@ -864,7 +930,7 @@ function vProfil(){
     <div class="row" style="margin-top:12px;gap:8px">
       <button class="btn sm ghost" onclick="formGambarAtlet('${esc(a.ID)}')">📷 Kemas Gambar</button>
       <button class="btn sm ghost" onclick="formAtlet('${esc(a.ID)}')">✎ Maklumat</button>
-      ${bolehUrusAtlet()?`<button class="btn sm bad" onclick="padamAtlet('${esc(a.ID)}')">🗑 Padam Atlet</button>`:""}
+      ${bolehPadamAtlet()?`<button class="btn sm bad" onclick="padamAtlet('${esc(a.ID)}')">🗑 Padam Atlet</button>`:""}
     </div>
   </div>
 
