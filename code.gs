@@ -254,20 +254,30 @@ function kemaskiniAtlet(p) {
   var v = s.getDataRange().getValues();
   for (var i = 1; i < v.length; i++) {
     if (String(v[i][0]) === String(p.id)) {
-      // Sokong muat naik gambar semasa kemaskini
       if (p.gambarBase64) {
         var g = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: p.id + "_" + nowStr().replace(/[^0-9]/g, "") });
         p.gambar = g.url;
       }
       var medan = { nama: 1, noIc: 2, jantina: 3, kategori: 4, sekolah: 5, gambar: 6, catatan: 7 };
-      Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null && p[k] !== "") v[i][medan[k]] = p[k]; });
+      // Kemaskini SEMUA medan yang dihantar (termasuk catatan kosong), supaya UI tidak perlu refresh.
+      Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null) v[i][medan[k]] = p[k]; });
       v[i][8] = p.olehNama;
       v[i][9] = nowStr();
       s.getRange(i + 1, 1, 1, HEADERS[SHEET_ATLET].length).setValues([v[i].slice(0, HEADERS[SHEET_ATLET].length)]);
-      return { ok: true, gambar: v[i][6] };
+      var h = HEADERS[SHEET_ATLET], out = {};
+      for (var j = 0; j < h.length; j++) out[h[j]] = v[i][j];
+      return { ok: true, gambar: v[i][6], atlet: out };
     }
   }
   throw new Error("Atlet tidak dijumpai.");
+}
+
+/* Fungsi mudah untuk pentadbir menekan "Run" sekali supaya semua kebenaran (Drive, Sheet) diberikan. */
+function authorizeAll() {
+  setupPangkalanData();
+  try { folderGambar(); } catch (e) {}
+  try { folderFail(); } catch (e) {}
+  return "OK — semua kebenaran diberi.";
 }
 
 function simpanKehadiran(p) {

@@ -114,7 +114,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbwHyrgfFqJSwKIa8lnf-XKYr5pkstcsj5evCvDzPNEdVRJdpkLU9QwMhrAJuPe6kACG5w/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzGRyW3glCKLZA4TzRDMZmW8LMJughHkXQ_i9pRHtAqdvaOn5cRKkOw4SHQ0uhpLbGPPw/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -156,7 +156,7 @@ const RUJUKAN={
   "DB-004":["Skrip Google Sheet membalas dengan ralat.","Lihat butiran / Apps Script Executions."],
   "DB-005":["Balasan tidak sah.","Kemas kini deployment selepas paste kod baharu."],
   "DB-006":["Sheet/lajur tiada.","Jalankan setupPangkalanData()."],
-  "DB-007":["Ralat kebenaran.","Buka Apps Script → Authorize."]
+  "DB-007":["Skrip belum diberi kebenaran Google Drive.","Buka Apps Script → Pilih fungsi authorizeAll → tekan Run → benarkan akses Drive & Sheet. Kemudian Deploy > Manage deployments > Edit > New version."]
 };
 function RalatDB(kod,mesej,mentah,aksi){
   const r=RUJUKAN[kod]||["Ralat tidak dikenali.","Hubungi teknision."];
@@ -506,9 +506,14 @@ async function simpanAtlet(id){
   if(!p.nama){ if(btn){btn.disabled=false;btn.textContent="Simpan ke Google Sheet";} return toast("Nama wajib diisi"); }
   try{
     if(id){
-      await api("kemaskiniAtlet",{id,...p});
-      const at=atletById(id);
-      if(at){ at["NAMA PENUH"]=p.nama; at["NO IC"]=p.noIc; at.JANTINA=p.jantina; at.KATEGORI=p.kategori; at.SEKOLAH=p.sekolah; at.CATATAN=p.catatan; }
+      const r=await api("kemaskiniAtlet",{id,...p});
+      // Gantikan rekod atlet tempatan dengan data terkini dari server supaya UI tak perlu refresh.
+      const idx=(DB.atlet||[]).findIndex(a=>String(a.ID)===String(id));
+      if(idx>-1 && r && r.atlet) DB.atlet[idx]=r.atlet;
+      else{
+        const at=atletById(id);
+        if(at){ at["NAMA PENUH"]=p.nama; at["NO IC"]=p.noIc; at.JANTINA=p.jantina; at.KATEGORI=p.kategori; at.SEKOLAH=p.sekolah; at.CATATAN=p.catatan; }
+      }
     }else{
       const r=await api("tambahAtlet",p);
       (DB.atlet=DB.atlet||[]).push({ID:r.id,"NAMA PENUH":p.nama,"NO IC":p.noIc,JANTINA:p.jantina,KATEGORI:p.kategori,SEKOLAH:p.sekolah,"GAMBAR (URL)":r.gambar||"",CATATAN:p.catatan,"DIDAFTAR OLEH":U.nama,"TARIKH DAFTAR":new Date().toLocaleString()});
@@ -551,9 +556,48 @@ async function simpanAcara(){
 }
 
 /* ---------- 6. Butiran Acara (papar rekod hari ini pada setiap atlet) ---------- */
+let AD_KAT="__ALL__", AD_SORT="nama"; /* filter kategori + susunan */
 function vAcaraDetail(){
-  const n=CTX.acara, info=acaraInfo(n), boleh=bolehRekod(n), pl=penyertaan(n), jl=jurulatihAcara(n);
+  const n=CTX.acara, info=acaraInfo(n), boleh=bolehRekod(n), jl=jurulatihAcara(n);
   const t=today();
+  const semua=penyertaan(n);
+  // Senarai kategori unik dalam acara ini
+  const kats=[...new Set(semua.map(p=>String(p.KATEGORI||"").toUpperCase()).filter(Boolean))].sort();
+  if(AD_KAT!=="__ALL__" && !kats.includes(AD_KAT)) AD_KAT="__ALL__";
+  const pl=AD_KAT==="__ALL__"?semua:semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===AD_KAT);
+  // Susunan
+  const nilai=(p)=>terbaik(n,p["ATLET ID"]);
+  const bilHariIni=(p)=>rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t).length;
+  const bilRekod=(p)=>rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"])).length;
+  const asc=info.JENIS==="MASA"; /* MASA: kecil dulu; JARAK: besar dulu */
+  const susun={
+    nama:(a,b)=>String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
+    terbaik:(a,b)=>{ const x=nilai(a),y=nilai(b); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return asc?x-y:y-x; },
+    hariIni:(a,b)=>bilHariIni(b)-bilHariIni(a) || String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
+    rekod:(a,b)=>bilRekod(b)-bilRekod(a) || String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
+    sekolah:(a,b)=>String(a.SEKOLAH||"").localeCompare(String(b.SEKOLAH||"")) || String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"]))
+  };
+  const sorted=pl.slice().sort(susun[AD_SORT]||susun.nama);
+  // Pengumpulan mengikut kategori bila "Semua" dipilih
+  const groups={};
+  if(AD_KAT==="__ALL__"){
+    sorted.forEach(p=>{ const k=String(p.KATEGORI||"TANPA KATEGORI").toUpperCase(); (groups[k]=groups[k]||[]).push(p); });
+  } else {
+    groups[AD_KAT]=sorted;
+  }
+  const tabsHtml=`<div class="tabs"><button class="${AD_KAT==="__ALL__"?"on":""}" onclick="AD_KAT='__ALL__';render()">Semua (${semua.length})</button>${
+    kats.map(k=>{
+      const c=semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===k).length;
+      return `<button class="${AD_KAT===k?"on":""}" onclick="AD_KAT='${esc(k)}';render()">${esc(k)} (${c})</button>`;
+    }).join("")}</div>`;
+  const sortHtml=`<label>Susun ikut</label><select onchange="AD_SORT=this.value;render()">
+    <option value="nama" ${AD_SORT==="nama"?"selected":""}>Nama (A-Z)</option>
+    <option value="terbaik" ${AD_SORT==="terbaik"?"selected":""}>Rekod Terbaik</option>
+    <option value="hariIni" ${AD_SORT==="hariIni"?"selected":""}>Rekod Hari Ini (banyak dulu)</option>
+    <option value="rekod" ${AD_SORT==="rekod"?"selected":""}>Jumlah Rekod (banyak dulu)</option>
+    <option value="sekolah" ${AD_SORT==="sekolah"?"selected":""}>Sekolah</option>
+  </select>`;
+
   app().innerHTML=`${topbar(n,"acara")}
   <div class="card">
     <span class="badge">${info.JENIS==="MASA"?"MASA (SAAT)":"JARAK (METER)"}</span>
@@ -563,8 +607,19 @@ function vAcaraDetail(){
     ${boleh?`<button class="btn sm" style="margin-top:10px" onclick="formPenyertaan('${esc(n)}')">+ Tambah Atlet ke Acara</button>`:`<div class="small" style="margin-top:10px">Hanya jurulatih acara ini atau Master Admin boleh menambah/merekod.</div>`}
     <button class="btn ghost sm" style="margin-top:10px" onclick="go('sejarah',{acara:'${esc(n)}'})">🕘 Sejarah Rekod Acara</button>
   </div>
+  <div class="card">
+    <h3 style="margin:0 0 6px">Analisis Atlet</h3>
+    <div class="small">Tapis mengikut kategori & susunan untuk memudahkan jurulatih menganalisis.</div>
+    ${tabsHtml}
+    ${sortHtml}
+  </div>
   <div id="senaraiAD">
-  ${pl.map(p=>itemAcaraDetail(n,p,info,boleh,t)).join("")||`<div class="card small">Belum ada atlet dalam acara ini.</div>`}
+  ${Object.keys(groups).length===0?`<div class="card small">Belum ada atlet dalam acara ini.</div>`:
+    Object.keys(groups).sort().map(k=>{
+      const list=groups[k];
+      const hdr=AD_KAT==="__ALL__"?`<div class="card" style="padding:10px 14px;margin-bottom:8px"><b>Kategori: ${esc(k)}</b> <span class="small">• ${list.length} atlet</span></div>`:"";
+      return hdr + list.map(p=>itemAcaraDetail(n,p,info,boleh,t)).join("");
+    }).join("")}
   </div>`;
 }
 function itemAcaraDetail(n,p,info,boleh,t){
@@ -587,9 +642,10 @@ function itemAcaraDetail(n,p,info,boleh,t){
   </div>`;
 }
 function kemasItemAD(n,atletId){
-  const el=document.getElementById(`ad-${n}-${atletId}`); if(!el) return;
+  const el=document.getElementById(`ad-${n}-${atletId}`);
+  if(!el){ render(); return; } /* Fallback: paksa lukis semula supaya rekod baru muncul tanpa refresh */
   const info=acaraInfo(n), boleh=bolehRekod(n);
-  const p=penyertaan(n).find(x=>String(x["ATLET ID"])===String(atletId)); if(!p) return;
+  const p=penyertaan(n).find(x=>String(x["ATLET ID"])===String(atletId)); if(!p){ render(); return; }
   el.outerHTML=itemAcaraDetail(n,p,info,boleh,today());
 }
 function formJurulatih(n){
