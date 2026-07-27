@@ -94,6 +94,16 @@ function namaSheetRekod(acara) {
 }
 function sheetRekod(acara) { return dapatSheet(namaSheetRekod(acara), HEADER_REKOD, "#00a3c4"); }
 
+/* Tukar sel Date kepada teks yang betul supaya tidak keluar 1899-12-30T...Z */
+function nilaiSelamat(header, v) {
+  if (!(v instanceof Date)) return v;
+  var tz = Session.getScriptTimeZone();
+  var hh = String(header || "").toUpperCase();
+  if (hh === "MASA") return Utilities.formatDate(v, tz, "HH:mm:ss");
+  if (hh === "TARIKH") return Utilities.formatDate(v, tz, "yyyy-MM-dd");
+  return Utilities.formatDate(v, tz, "yyyy-MM-dd HH:mm:ss");
+}
+
 function baca(nama) {
   var s = ss().getSheetByName(nama);
   if (!s || s.getLastRow() < 2) return [];
@@ -101,7 +111,7 @@ function baca(nama) {
   var h = v[0], out = [];
   for (var i = 1; i < v.length; i++) {
     var o = {}, kosong = true;
-    for (var j = 0; j < h.length; j++) { o[h[j]] = v[i][j]; if (v[i][j] !== "" && v[i][j] !== null) kosong = false; }
+    for (var j = 0; j < h.length; j++) { o[h[j]] = nilaiSelamat(h[j], v[i][j]); if (v[i][j] !== "" && v[i][j] !== null) kosong = false; }
     if (!kosong) out.push(o);
   }
   return out;
@@ -189,14 +199,69 @@ function semuaData(p) {
 }
 
 /* ---------------- Folder Google Drive ---------------- */
+var FOLDER_FAIL_ID = ""; /* boleh diisi dengan ID folder "FAIL ATLET" jika mahu tetap */
+
+function cariAtauCiptaFolder(nama, indukId) {
+  /* Cuba cari dalam folder induk dahulu (kurang kebenaran diperlukan),
+     kemudian barulah carian global, akhir sekali cipta baharu. */
+  if (indukId) {
+    try {
+      var induk = DriveApp.getFolderById(indukId);
+      var it0 = induk.getFoldersByName(nama);
+      if (it0.hasNext()) return it0.next();
+      return induk.createFolder(nama);
+    } catch (e) {}
+  }
+  try {
+    var it = DriveApp.getFoldersByName(nama);
+    if (it.hasNext()) return it.next();
+  } catch (e) {
+    throw new Error("Kebenaran Google Drive belum diberikan. Buka Apps Script > pilih fungsi authorizeAll > Run > benarkan akses. Butiran: " + e.message);
+  }
+  return DriveApp.createFolder(nama);
+}
+
 function folderGambar() {
   if (FOLDER_GAMBAR_ID) { try { return DriveApp.getFolderById(FOLDER_GAMBAR_ID); } catch (e) {} }
-  var it = DriveApp.getFoldersByName(NAMA_FOLDER_GAMBAR);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(NAMA_FOLDER_GAMBAR);
+  return cariAtauCiptaFolder(NAMA_FOLDER_GAMBAR, null);
 }
+
 function folderFail() {
-  var it = DriveApp.getFoldersByName(NAMA_FOLDER_FAIL);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(NAMA_FOLDER_FAIL);
+  if (FOLDER_FAIL_ID) { try { return DriveApp.getFolderById(FOLDER_FAIL_ID); } catch (e) {} }
+  /* Letak folder FAIL ATLET bersebelahan folder GAMBAR ATLET jika ada */
+  var indukId = null;
+  if (FOLDER_GAMBAR_ID) {
+    try {
+      var par = DriveApp.getFolderById(FOLDER_GAMBAR_ID).getParents();
+      if (par.hasNext()) indukId = par.next().getId();
+    } catch (e) {}
+  }
+  return cariAtauCiptaFolder(NAMA_FOLDER_FAIL, indukId);
+}
+
+/* ====== JALANKAN FUNGSI INI SEKALI UNTUK BERI SEMUA KEBENARAN ======
+   Apps Script > pilih "authorizeAll" > Run > Benarkan (Allow) semua.
+   Kemudian: Deploy > Manage deployments > Edit > New version > Deploy. */
+function authorizeAll() {
+  var log = [];
+  try { log.push("Emel: " + Session.getEffectiveUser().getEmail()); } catch (e) { log.push("Emel: gagal - " + e.message); }
+  try { log.push("Sheet: " + ss().getName()); } catch (e) { log.push("Sheet: GAGAL - " + e.message); }
+  try { setupPangkalanData(); log.push("Setup sheet: OK"); } catch (e) { log.push("Setup sheet: GAGAL - " + e.message); }
+  try { var fg = folderGambar(); log.push("Folder gambar: " + fg.getName() + " (" + fg.getId() + ")"); }
+  catch (e) { log.push("Folder gambar: GAGAL - " + e.message); }
+  try { var ff = folderFail(); log.push("Folder fail: " + ff.getName() + " (" + ff.getId() + ")"); }
+  catch (e) { log.push("Folder fail: GAGAL - " + e.message); }
+  try {
+    var uji = folderFail().createFile(Utilities.newBlob("ujian kebenaran", "text/plain", "UJIAN_AUTHORIZE.txt"));
+    uji.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    uji.setTrashed(true);
+    log.push("Ujian cipta & padam fail: OK");
+  } catch (e) { log.push("Ujian cipta fail: GAGAL - " + e.message); }
+  try { UrlFetchApp.fetch("https://www.google.com/generate_204"); log.push("Capaian luar: OK"); }
+  catch (e) { log.push("Capaian luar: GAGAL - " + e.message); }
+  var hasil = log.join("\n");
+  Logger.log(hasil);
+  return hasil;
 }
 
 /* p.gambarBase64 = "data:image/jpeg;base64,...."  ATAU base64 mentah
@@ -383,6 +448,7 @@ function tambahAcara(p) {
 /* ---------------- Router ---------------- */
 var TINDAKAN = {
   ping: function () { return { ok: true, masa: nowStr() }; },
+  authorizeAll: function () { return { laporan: authorizeAll() }; },
   setup: function () { return { mesej: setupPangkalanData() }; },
   daftar: daftarGuru,
   login: login,
