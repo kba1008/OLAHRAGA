@@ -19,6 +19,10 @@ var SHEET_PENYERTAAN = "PENYERTAAN";
 var SHEET_FAIL = "FAIL_ATLET";
 var PREFIX_REKOD = "REKOD_";
 
+/* ID Google Sheet UTAMA (pangkalan data). Skrip akan buka sheet ini terus,
+   walaupun skrip dijalankan sebagai skrip standalone (tidak terikat pada sheet). */
+var SHEET_ID = "1Y2sYo-8PqhCkVP9W0RbYfXnQWx4efKsP_6-veIm7dxM";
+
 /* ID FOLDER GOOGLE DRIVE untuk simpan gambar atlet.
    Ambil dari URL folder: https://drive.google.com/drive/folders/<ID_INI>
    Biarkan kosong ("") jika mahu skrip cipta folder "GAMBAR ATLET" secara automatik. */
@@ -55,7 +59,16 @@ var ACARA_LALAI = [
 ];
 
 /* ---------------- Util ---------------- */
-function ss() { return SpreadsheetApp.getActiveSpreadsheet(); }
+var __SS_CACHE = null;
+function ss() {
+  if (__SS_CACHE) return __SS_CACHE;
+  var a = null;
+  try { a = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
+  if (!a && SHEET_ID) a = SpreadsheetApp.openById(SHEET_ID);
+  if (!a) throw new Error("Tidak dapat buka Google Sheet. Semak SHEET_ID atau buka Apps Script dari sheet yang betul.");
+  __SS_CACHE = a;
+  return a;
+}
 
 function kemasSheet(sh, header, warna) {
   sh.getRange(1, 1, 1, header.length).setValues([header]);
