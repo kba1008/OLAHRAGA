@@ -148,7 +148,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxlmE8zLLhlmyPQbXLBgF0pBUHCDxwpbSHtOElLKPu0OKD8EgtySGtOPL0R0r65obmJRQ/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzjtJsU0HSos23p8DmowQ8oiGL2Bzv3gPAFSweN_PzbSX2jIvDge-wZajil4ZakrhQtQQ/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1504,6 +1504,13 @@ function selTop3(r,unit,jenis){
   if(!r.top3||!r.top3.length) return `<span style="color:#98a2b3">—</span>`;
   return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${fmtNilaiUnit(t.nilai,jenis||(String(unit).toLowerCase()==="saat"?"MASA":"JARAK"),unit)}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
 }
+/* Rekod kejohanan (per kategori) — untuk laporan */
+function selRK(rk,info){
+  if(!rk) return `<span style="color:#98a2b3">—</span>`;
+  const nilai=rk.KEPUTUSAN||(rk.NILAI?fmtNilai(Number(rk.NILAI),info):"-");
+  const meta=[rk["NAMA KEJOHANAN"]||"",rk.TAHUN||"",rk["PEMEGANG REKOD"]||""].filter(Boolean).join(" • ");
+  return `<div><b style="color:#0b3b6f">🏆 ${esc(nilai)}</b>${meta?`<div class="d" style="color:#667085;font-size:10.5px">${esc(meta)}</div>`:""}</div>`;
+}
 
 function gayaLaporan(){
   return `
@@ -1586,10 +1593,12 @@ function cetakLaporan(mod){
       isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span></h2>`;
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
-        isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet</h3>
-        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
+        const rkKat=kejohananKat(n,k);
+        const rkTxt=rkKat?` <span style="font-weight:400;text-transform:none;color:#0b3b6f">• 🏆 ${esc(rkKat.KEPUTUSAN||fmtNilai(Number(rkKat.NILAI),info))}${rkKat["NAMA KEJOHANAN"]?" ("+esc(rkKat["NAMA KEJOHANAN"])+(rkKat.TAHUN?" "+esc(rkKat.TAHUN):"")+")":""}${rkKat["PEMEGANG REKOD"]?" — "+esc(rkKat["PEMEGANG REKOD"]):""}</span>`:"";
+        isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet${rkTxt}</h3>
+        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
-          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRK(rkKat,info)}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
         });
         isi+=`</tbody></table>`;
       });
@@ -1607,7 +1616,7 @@ function cetakLaporan(mod){
         const kat=semua[k]=semua[k]||{};
         (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
           acara:n,unit:info.UNIT||"",jenis:info.JENIS||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
-          rekodPeribadi:r.rekodPeribadi,top3:r.top3
+          rekodPeribadi:r.rekodPeribadi,top3:r.top3,rk:kejohananKat(n,k),info:info
         });
       });
     });
@@ -1620,9 +1629,9 @@ function cetakLaporan(mod){
     Object.keys(semua[k]).sort((a,b)=>a.localeCompare(b)).forEach(nama=>{
       const d=semua[k][nama];
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
-      <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
+      <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
