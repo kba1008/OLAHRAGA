@@ -331,8 +331,8 @@ function fmtSaat(v){
 /* Nilai + unit yang betul mengikut jenis acara */
 function fmtNilai(v,info){
   const x=Number(v); if(v==null||!isFinite(x)) return "-";
-  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?" saat":" min");
-  return x.toFixed(2)+((info&&info.UNIT)?" "+info.UNIT:"");
+  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?" saat":" min");
+  return x.toFixed(2)+((info&&info.UNIT)?" "+info.UNIT:"");
 }
 function fmtNilaiUnit(v,jenis,unit){ return fmtNilai(v,{JENIS:jenis,UNIT:unit}); }
 
