@@ -132,7 +132,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzKoYbbMi0wgKMCf1Bw3iLv8rqqSo2z3VoX_HsMkwMSgmNSoSzWLJIm9p-d_Sa6Xwkoqg/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyksRAnMkMfKufK4y8KM2CUDHIsZRRXXv1VWetXn7I6LXQHzG4YlWdagYgvTSHZ1FgDOA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -868,9 +868,9 @@ function formPenyertaan(n){
   const baris=list.map(a=>{
     const hadir=hadirHariIni(a.ID,t);
     const cari=(String(a["NAMA PENUH"]||"")+" "+String(a.KATEGORI||"")+" "+String(a.SEKOLAH||"")).toLowerCase();
-    return `<label class="atletPick" data-cari="${esc(cari)}" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #eee;cursor:pointer">
-      <input type="radio" name="paChoice" value="${esc(a.ID)}"/>
-      <span style="flex:1"><div><b>${esc(a["NAMA PENUH"])}</b></div><div class="small">${esc(a.KATEGORI||"")} • ${esc(a.SEKOLAH||"")} ${hadir?'<span style="color:var(--ok)">✓ hadir</span>':'<span style="color:var(--warn)">(belum hadir)</span>'}</div></span>
+    return `<label class="atletPick" data-cari="${esc(cari)}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer">
+      <input type="radio" name="paChoice" value="${esc(a.ID)}" style="width:18px;height:18px;flex:0 0 auto;margin:0"/>
+      <span style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a["NAMA PENUH"])}</div><div class="small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.KATEGORI||"")} • ${esc(a.SEKOLAH||"")} ${hadir?'<span style="color:var(--ok)">✓ hadir</span>':'<span style="color:var(--warn)">(belum hadir)</span>'}</div></span>
     </label>`;
   }).join("");
   overlay(`<div class="big">Tambah Atlet — ${esc(n)}</div>
