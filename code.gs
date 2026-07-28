@@ -39,7 +39,7 @@ var HEADERS = {};
 HEADERS[SHEET_GURU] = ["ID", "NAMA PENUH", "EMEL", "KATA LALUAN", "JAWATAN", "SEKOLAH", "NO TELEFON", "PERANAN", "TARIKH DAFTAR"];
 HEADERS[SHEET_ATLET] = ["ID", "NAMA PENUH", "NO IC", "JANTINA", "KATEGORI", "SEKOLAH", "GAMBAR (URL)", "CATATAN", "DIDAFTAR OLEH", "TARIKH DAFTAR"];
 HEADERS[SHEET_KEHADIRAN] = ["ID", "TARIKH", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "STATUS", "CATATAN", "DICATAT OLEH", "TARIKH & MASA"];
-HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "AKTIF"];
+HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "MOD", "AKTIF"];
 HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
 HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
 HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
@@ -182,6 +182,7 @@ function login(p) {
 /* ---------------- Data utama ---------------- */
 function semuaData(p) {
   setupSekaliSahaja();
+  try { pastikanKolumAcara(); } catch (e) {}
   var acara = baca(SHEET_ACARA).filter(function (a) { return a["ACARA"]; });
   var rekod = {};
   acara.forEach(function (a) { rekod[a["ACARA"]] = baca(namaSheetRekod(a["ACARA"])); });
@@ -591,15 +592,39 @@ function simpanRekodLatihan(p) {
   };
 }
 
+function pastikanKolumAcara() {
+  /* Migrasi ringan: pastikan header sheet ACARA ada kolum MOD (untuk projek lama). */
+  var s = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
+  var lc = s.getLastColumn();
+  if (lc < 1) return;
+  var head = s.getRange(1, 1, 1, lc).getValues()[0].map(function(x){return String(x||"").toUpperCase();});
+  if (head.indexOf("MOD") >= 0) return;
+  var iAktif = head.indexOf("AKTIF");
+  if (iAktif >= 0) s.insertColumnBefore(iAktif + 1); else s.insertColumnAfter(lc);
+  var newCol = iAktif >= 0 ? iAktif + 1 : lc + 1;
+  s.getRange(1, newCol).setValue("MOD");
+  var lr = s.getLastRow();
+  if (lr >= 2) {
+    var vals = s.getRange(2, 1, lr - 1, 1).getValues().map(function(r){
+      var nm = String(r[0]||"");
+      var relay = /(?:^|[^A-Z0-9])4\s*[xX]\s*\d+|MIX\s*RELAY|RELAY/i.test(nm);
+      return [relay ? "BERPASUKAN" : "INDIVIDU"];
+    });
+    s.getRange(2, newCol, vals.length, 1).setValues(vals);
+  }
+}
 function tambahAcara(p) {
   if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menambah acara.");
+  pastikanKolumAcara();
   var s = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
   var nama = String(p.acara).toUpperCase().trim();
   if (baca(SHEET_ACARA).some(function (a) { return String(a["ACARA"]).toUpperCase() === nama; })) throw new Error("Acara sudah wujud.");
-  s.appendRow([nama, p.jenis || "MASA", p.unit || "saat", "YA"]);
+  s.appendRow([nama, p.jenis || "MASA", p.unit || "saat", (p.mod||"INDIVIDU"), "YA"]);
   sheetRekod(nama);
   return { ok: true };
 }
+
+
 
 /* ---------------- Router ---------------- */
 var TINDAKAN = {
