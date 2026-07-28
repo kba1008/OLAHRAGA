@@ -132,7 +132,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyRtjOWkW09yRyT1zPOg5_LHKwEMH7dJvUEpClTGiYdV46BSvs-5wMG-7iOra1wZTYZWw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyksRAnMkMfKufK4y8KM2CUDHIsZRRXXv1VWetXn7I6LXQHzG4YlWdagYgvTSHZ1FgDOA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -310,8 +310,12 @@ const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
 const rekodAcara=n=>((DB&&DB.rekod&&DB.rekod[n])||[]);
 const hadirHariIni=(id,tarikh)=>((DB&&DB.kehadiran)||[]).some(k=>String(k.TARIKH).slice(0,10)===tarikh&&String(k["ATLET ID"])===String(id)&&String(k.STATUS).toUpperCase()==="HADIR");
 const failAtletList=id=>((DB&&DB.failAtlet)||[]).filter(f=>String(f["ATLET ID"])===String(id));
+/* Acara berpasukan (relay) — satu rekod dikongsi oleh beberapa atlet */
+const isAcaraRelay=n=>/(?:^|[^A-Z0-9])4\s*[xX]\s*\d+|MIX\s*RELAY|RELAY/i.test(String(n||""));
+const idsRekod=r=>String((r&&r["ATLET ID"])||"").split(",").map(s=>s.trim()).filter(Boolean);
+const rekodMilik=(r,id)=>idsRekod(r).indexOf(String(id))>=0;
 function terbaik(n,id){
-  const r=rekodAcara(n).filter(x=>String(x["ATLET ID"])===String(id)&&Number(x.NILAI)>0).map(x=>Number(x.NILAI));
+  const r=rekodAcara(n).filter(x=>rekodMilik(x,id)&&Number(x.NILAI)>0).map(x=>Number(x.NILAI));
   if(!r.length) return null;
   return acaraInfo(n).JENIS==="MASA"?Math.min.apply(null,r):Math.max.apply(null,r);
 }
@@ -715,8 +719,8 @@ function vAcaraDetail(){
   const pl=AD_KAT==="__ALL__"?semua:semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===AD_KAT);
   // Susunan
   const nilai=(p)=>terbaik(n,p["ATLET ID"]);
-  const bilHariIni=(p)=>rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t).length;
-  const bilRekod=(p)=>rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"])).length;
+  const bilHariIni=(p)=>rekodAcara(n).filter(r=>rekodMilik(r,p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t).length;
+  const bilRekod=(p)=>rekodAcara(n).filter(r=>rekodMilik(r,p["ATLET ID"])).length;
   const asc=info.JENIS==="MASA"; /* MASA: kecil dulu; JARAK: besar dulu */
   const susun={
     nama:(a,b)=>String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
@@ -753,6 +757,7 @@ function vAcaraDetail(){
     <div>${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${isAdmin()?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
     ${isAdmin()?`<button class="btn sm ghost" style="margin-top:10px" onclick="formJurulatih('${esc(n)}')">+ Lantik Jurulatih</button>`:""}
     ${boleh?`<button class="btn sm" style="margin-top:10px" onclick="formPenyertaan('${esc(n)}')">+ Tambah Atlet ke Acara</button>`:`<div class="small" style="margin-top:10px">Hanya jurulatih acara ini atau Master Admin boleh menambah/merekod.</div>`}
+    ${boleh && isAcaraRelay(n)?`<button class="btn sm" style="margin-top:8px;background:var(--p2)" onclick="formRekodRelay('${esc(n)}')">👥 + Rekod Berpasukan</button><div class="small" style="margin-top:4px">Acara berpasukan — satu rekod dikongsi oleh semua atlet dalam pasukan.</div>`:""}
     <button class="btn ghost sm" style="margin-top:10px" onclick="go('sejarah',{acara:'${esc(n)}'})">🕘 Sejarah Rekod Acara</button>
   </div>
   <div class="card">
@@ -774,7 +779,7 @@ function itemAcaraDetail(n,p,info,boleh,t){
   const a=atletById(p["ATLET ID"])||{"NAMA PENUH":p["NAMA ATLET"],KATEGORI:p.KATEGORI,SEKOLAH:p.SEKOLAH,ID:p["ATLET ID"]};
   const b=terbaik(n,p["ATLET ID"]), hadir=hadirHariIni(p["ATLET ID"],t);
   const lagiBaik=(x,y)=>info.JENIS==="MASA"?x-y:y-x; /* terbaik dahulu */
-  const rHariIni=rekodAcara(n).filter(r=>String(r["ATLET ID"])===String(p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t)
+  const rHariIni=rekodAcara(n).filter(r=>rekodMilik(r,p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t)
     .sort((x,y)=>{
       const vx=Number(x.NILAI), vy=Number(y.NILAI);
       const ox=isFinite(vx)&&vx>0, oy=isFinite(vy)&&vy>0;
@@ -806,7 +811,7 @@ function itemAcaraDetail(n,p,info,boleh,t){
       ${barisInfo}
       ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}) — terbaik di hadapan:</div>${chips}`:""}
     </div>
-    ${boleh?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button></div>`:""}
+    ${boleh && !isAcaraRelay(n)?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button></div>`:""}
   </div>`;
 }
 
@@ -898,7 +903,61 @@ async function simpanR(n,id){
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Rekod";} }
 }
 
-/* ---------- 7. Sejarah rekod (tanpa DICATAT OLEH di UI) ---------- */
+/* ---------- Rekod Berpasukan (Relay: 4x100, 4x200, 4x400, Mix Relay) ---------- */
+function formRekodRelay(n){
+  const info=acaraInfo(n);
+  const t=today();
+  const semua=penyertaan(n);
+  if(!semua.length) return toast("Tiada atlet dalam acara ini. Tambah atlet dahulu.");
+  // Kumpul mengikut kategori supaya jurulatih mudah pilih ahli pasukan
+  const kats=[...new Set(semua.map(p=>String(p.KATEGORI||"TANPA KATEGORI").toUpperCase()))].sort();
+  const senarai=kats.map(k=>{
+    const list=semua.filter(p=>String(p.KATEGORI||"TANPA KATEGORI").toUpperCase()===k);
+    return `<div class="small" style="margin-top:8px;color:var(--p2)"><b>${esc(k)}</b></div>` +
+      list.map(p=>{
+        const hadir=hadirHariIni(p["ATLET ID"],t);
+        const dis=hadir?"":"disabled";
+        const warna=hadir?"":"opacity:.55";
+        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;${warna}">
+          <input type="checkbox" class="relayChk" value="${esc(p["ATLET ID"])}" data-nama="${esc(p["NAMA ATLET"])}" data-kat="${esc(p.KATEGORI||"")}" data-sek="${esc(p.SEKOLAH||"")}" ${dis}/>
+          <span>${esc(p["NAMA ATLET"])} <span class="small">— ${esc(p.SEKOLAH||"")}</span> ${hadir?'<span class="small" style="color:var(--ok)">✓ hadir</span>':'<span class="small" style="color:var(--warn)">(belum hadir)</span>'}</span>
+        </label>`;
+      }).join("");
+  }).join("");
+  overlay(`<div class="big">Rekod Berpasukan — ${esc(n)}</div>
+  <div class="small">Pilih semua atlet dalam pasukan. Satu keputusan akan dikongsi bersama.</div>
+  <label style="margin-top:8px">Tarikh</label><input type="date" id="rrt" value="${t}"/>
+  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <input id="rrv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 45.12 atau 1:45.12":"Cth: 4.63"}"/>
+  ${info.JENIS==="MASA"?`<div class="small">Format: <b>45.12</b> (saat) atau <b>1:45.12</b> / <b>1.45.12</b> (1 minit 45.12 saat).</div>`:""}
+  <label>Catatan</label><textarea id="rrc" rows="2" placeholder="Cth: pusingan akhir, susunan larian"></textarea>
+  <div class="small" style="margin-top:8px"><b>Ahli Pasukan</b> — hanya atlet yang telah ditanda HADIR boleh dipilih.</div>
+  <div style="max-height:38vh;overflow:auto;border:1px solid #eee;border-radius:10px;padding:6px 10px;margin-top:4px">${senarai||'<div class="small">Tiada atlet.</div>'}</div>
+  <button class="btn" id="btnRR" onclick="simpanRRelay('${esc(n)}')">Simpan Rekod Pasukan</button>
+  <button class="btn ghost" onclick="tutup()">Tutup</button>`);
+  setTimeout(()=>{ const el=$("#rrv"); if(el) el.focus(); },50);
+}
+async function simpanRRelay(n){
+  const btn=$("#btnRR"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  const info=acaraInfo(n);
+  const dipilih=[...document.querySelectorAll(".relayChk:checked")];
+  if(dipilih.length<2){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod Pasukan";} return toast("Pilih sekurang-kurangnya 2 atlet untuk pasukan."); }
+  const atletIds=dipilih.map(x=>x.value);
+  const namaList=dipilih.map(x=>x.dataset.nama||"");
+  const kategori=[...new Set(dipilih.map(x=>x.dataset.kat||"").filter(Boolean))].join(" / ");
+  const sekolah=[...new Set(dipilih.map(x=>x.dataset.sek||"").filter(Boolean))].join(" / ");
+  const mentah=$("#rrv").value;
+  const catatan=($("#rrc")&&$("#rrc").value.trim())||"";
+  const tarikh=($("#rrt")&&$("#rrt").value)||today();
+  const nilai=info.JENIS==="MASA"?huraiMasa(mentah):parseFloat(String(mentah).replace(",","."));
+  if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod Pasukan";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 45.12 atau 1:45.12)":"Masukkan keputusan yang sah"); }
+  try{
+    const r=await api("rekod",{acara:n,atletIds,namaList,kategori,sekolah,keputusan:fmtNilai(nilai,info),nilai,catatan,tarikh,...who()});
+    if(r && r.rekod) tambahRekodLokal(n, r.rekod);
+    tutup(); render(); toast("Rekod pasukan disimpan");
+  }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Rekod Pasukan";} }
+}
+
 function vSejarah(){
   const n=CTX.acara, info=acaraInfo(n);
   const r=rekodAcara(n).slice().sort((a,b)=>String(b["TARIKH & MASA REKOD"]).localeCompare(String(a["TARIKH & MASA REKOD"])));

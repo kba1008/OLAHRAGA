@@ -548,19 +548,43 @@ function tambahPenyertaan(p) {
 function simpanRekodLatihan(p) {
   if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh merekod.");
   var tarikh = p.tarikh || hariIni();
-  var hadir = baca(SHEET_KEHADIRAN).some(function (k) {
-    return tarikhStr(k["TARIKH"]) === tarikh && String(k["ATLET ID"]) === String(p.atletId) && String(k["STATUS"]).toUpperCase() === "HADIR";
-  });
-  if (!hadir) throw new Error("Kehadiran atlet pada " + tarikh + " belum ditanda. Rekod latihan tidak boleh diambil.");
+
+  /* Sokong acara berpasukan: p.atletIds = array id, p.namaList = array nama.
+     Kekal serasi dengan panggilan lama yang hanya hantar p.atletId + p.nama. */
+  var atletIds = [];
+  if (Object.prototype.toString.call(p.atletIds) === "[object Array]") atletIds = p.atletIds.slice();
+  else if (p.atletIds) atletIds = String(p.atletIds).split(",");
+  else if (p.atletId) atletIds = [p.atletId];
+  atletIds = atletIds.map(function (x) { return String(x).trim(); }).filter(function (x) { return x; });
+  if (!atletIds.length) throw new Error("Tiada atlet dipilih untuk rekod ini.");
+
+  var namaList = [];
+  if (Object.prototype.toString.call(p.namaList) === "[object Array]") namaList = p.namaList.slice();
+  else if (p.namaList) namaList = String(p.namaList).split("|");
+  else if (p.nama) namaList = [p.nama];
+  namaList = namaList.map(function (x) { return String(x).trim(); });
+  while (namaList.length < atletIds.length) namaList.push(atletIds[namaList.length]);
+
+  var kehadiran = baca(SHEET_KEHADIRAN);
+  for (var i = 0; i < atletIds.length; i++) {
+    var aid = atletIds[i];
+    var hadir = kehadiran.some(function (k) {
+      return tarikhStr(k["TARIKH"]) === tarikh && String(k["ATLET ID"]) === String(aid) && String(k["STATUS"]).toUpperCase() === "HADIR";
+    });
+    if (!hadir) throw new Error("Kehadiran atlet " + (namaList[i] || aid) + " pada " + tarikh + " belum ditanda. Rekod latihan tidak boleh diambil.");
+  }
+
+  var idJoin = atletIds.join(", ");
+  var namaJoin = namaList.join(" + ");
   var s = sheetRekod(p.acara);
   var masa = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss");
   var id = idBaharu("R", s.getName());
   var tms = nowStr();
-  s.appendRow([id, tarikh, masa, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, tms]);
+  s.appendRow([id, tarikh, masa, idJoin, namaJoin, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, tms]);
   return {
     ok: true,
     rekod: {
-      "ID": id, "TARIKH": tarikh, "MASA": masa, "ATLET ID": p.atletId, "NAMA ATLET": p.nama,
+      "ID": id, "TARIKH": tarikh, "MASA": masa, "ATLET ID": idJoin, "NAMA ATLET": namaJoin,
       "KATEGORI": p.kategori || "", "SEKOLAH": p.sekolah || "", "KEPUTUSAN": p.keputusan,
       "NILAI": Number(p.nilai) || "", "CATATAN": p.catatan || "", "DICATAT OLEH": p.olehNama, "TARIKH & MASA REKOD": tms
     }
