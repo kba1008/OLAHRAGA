@@ -72,6 +72,9 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .tile .ic{font-size:40px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5))}
 .tile .tt{font-size:18px;font-weight:900;margin-top:8px;letter-spacing:.3px}
 .tile .ts{font-size:12px;opacity:.9;margin-top:3px}
+.dragHandle{cursor:grab;user-select:none;font-size:18px;line-height:1;color:var(--mut,#9aa);padding:4px 6px;border-radius:10px;background:rgba(255,255,255,.06);flex:0 0 auto}
+.item.dragging{opacity:.45}
+.item.dragOver{outline:2px dashed var(--p2,#7c5cff);outline-offset:2px}
 .item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;background:rgba(255,255,255,.055);border:1px solid var(--line);margin-bottom:10px;box-shadow:0 10px 22px -18px #000}
 .av{width:48px;height:48px;border-radius:14px;object-fit:cover;background:#111a3d;border:1px solid var(--line);flex:0 0 auto}
 .nm{font-weight:800;font-size:14px;line-height:1.25}
@@ -144,7 +147,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyd-wqWCPaaZkMzLvqhiDhQZE3WIIpLv9Sj_EVU7T97P2VqId-TsP4YBhgRb6exdgn9Kw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxrrYSS0SCXmHZhh4nmWVz_bjsBCg4b0mPDvkCMACUQ2DTGI1K4eLID6pXa-LphmkGIJA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -162,6 +165,8 @@ const isJurulatihDilantik=()=>!!U&&((typeof DB!=="undefined"&&DB&&DB.jurulatih)|
 const bolehUrusAtlet=()=>isAdmin()||isJurulatihDilantik();
 /* Padam atlet dari keseluruhan sistem — Master Admin sahaja */
 const bolehPadamAtlet=()=>isAdmin();
+/* Tambah acara: Master Admin ATAU jurulatih yang telah dilantik */
+const bolehTambahAcara=()=>isAdmin()||isJurulatihDilantik();
 
 function toast(m,ms=2400){const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),ms)}
 function loading(t="Memuatkan data dari Google Sheet..."){app().innerHTML=`<div class="card" style="text-align:center"><div class="sp"></div><div class="small">${esc(t)}</div></div>`}
@@ -313,7 +318,9 @@ function avErr(a){
 
 
 /* ---------- Bantuan data ---------- */
-const acaraList=()=>((DB&&DB.acara)||[]).filter(a=>String(a.AKTIF||"YA").toUpperCase()!=="TIDAK");
+const acaraList=()=>((DB&&DB.acara)||[]).filter(a=>String(a.AKTIF||"YA").toUpperCase()!=="TIDAK")
+  .map((a,i)=>({a,i,s:Number(a.SUSUNAN||0)||9999}))
+  .sort((x,y)=>x.s-y.s||x.i-y.i).map(x=>x.a);
 const acaraInfo=n=>acaraList().find(a=>a.ACARA===n)||{JENIS:"MASA",UNIT:"saat"};
 const atletById=id=>((DB&&DB.atlet)||[]).find(a=>String(a.ID)===String(id));
 const jurulatihAcara=n=>((DB&&DB.jurulatih)||[]).filter(j=>j.ACARA===n);
@@ -692,19 +699,63 @@ async function padamAtlet(id){
 
 /* ---------- 5. Senarai Acara ---------- */
 function vAcara(){
+  const susunBoleh=isAdmin();
   app().innerHTML=`${topbar("Rekod Latihan — Senarai Acara","home")}
-  ${isAdmin()?`<div class="card"><button class="btn sm" onclick="formAcara()">+ Tambah Acara</button></div>`:""}
-  ${acaraList().map(a=>{
+  ${bolehTambahAcara()?`<div class="card"><button class="btn sm" onclick="formAcara()">+ Tambah Acara</button>
+    ${susunBoleh?`<div class="small" style="margin-top:8px">Seret ikon ⠿ untuk menyusun semula kedudukan acara. Susunan disimpan automatik.</div>`:`<div class="small" style="margin-top:8px">Acara yang anda tambah akan melantik anda sebagai jurulatih acara itu secara automatik.</div>`}</div>`:""}
+  <div id="acaraWrap">${acaraList().map(a=>{
     const n=a.ACARA, jl=jurulatihAcara(n), boleh=bolehRekod(n);
-    return `<div class="item" onclick="go('acaraDetail',{acara:'${esc(n)}'})">
+    return `<div class="item" data-acara="${esc(n)}" ${susunBoleh?'draggable="true"':""} onclick="go('acaraDetail',{acara:'${esc(n)}'})">
+      ${susunBoleh?`<div class="dragHandle" title="Seret untuk susun" onclick="event.stopPropagation()">⠿</div>`:""}
       <div class="rank">${esc(String(n).slice(0,3))}</div>
       <div style="flex:1"><div class="nm">${esc(n)}</div>
         <div class="sub">${penyertaan(n).length} atlet • ${rekodAcara(n).length} rekod • ${a.JENIS==="MASA"?"Masa (saat / minit)":"Jarak (meter)"}</div>
         <div class="sub">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
-      <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}</div>
+      <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
+      ${susunBoleh?`<div><button class="btn sm bad" style="margin-top:8px" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button></div>`:""}</div>
     </div>`;
-  }).join("")}`;
+  }).join("")}</div>`;
+  if(susunBoleh) pasangDragAcara();
+}
+
+/* Drag & drop susunan acara — Master Admin sahaja */
+let DRAG_EL=null;
+function pasangDragAcara(){
+  const wrap=document.getElementById("acaraWrap"); if(!wrap) return;
+  wrap.querySelectorAll(".item[draggable=true]").forEach(el=>{
+    el.addEventListener("dragstart",e=>{ DRAG_EL=el; el.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",el.dataset.acara)}catch(_){} });
+    el.addEventListener("dragend",()=>{ el.classList.remove("dragging"); wrap.querySelectorAll(".item").forEach(x=>x.classList.remove("dragOver")); DRAG_EL=null; simpanSusunanAcara(); });
+    el.addEventListener("dragover",e=>{ e.preventDefault(); if(!DRAG_EL||DRAG_EL===el) return; el.classList.add("dragOver");
+      const r=el.getBoundingClientRect(); const selepas=(e.clientY-r.top)>r.height/2;
+      wrap.insertBefore(DRAG_EL, selepas?el.nextSibling:el); });
+    el.addEventListener("dragleave",()=>el.classList.remove("dragOver"));
+    el.addEventListener("drop",e=>{ e.preventDefault(); el.classList.remove("dragOver"); });
+    /* Sokongan sentuhan: tekan lama pada ikon untuk naik/turun */
+    const h=el.querySelector(".dragHandle");
+    if(h) h.addEventListener("touchstart",()=>{},{passive:true});
+  });
+}
+async function simpanSusunanAcara(){
+  const wrap=document.getElementById("acaraWrap"); if(!wrap) return;
+  const senarai=[...wrap.querySelectorAll(".item")].map(el=>el.dataset.acara);
+  if(!senarai.length) return;
+  /* Kemaskini setempat dahulu supaya paparan kekal */
+  senarai.forEach((n,i)=>{ const a=(DB.acara||[]).find(x=>String(x.ACARA)===String(n)); if(a) a.SUSUNAN=i+1; });
+  try{ await api("susunAcara",{senarai,...who()}); toast("Susunan acara disimpan"); }
+  catch(e){ toastRalat(e); }
+}
+async function padamAcara(n){
+  if(!isAdmin()) return toast("Hanya Master Admin boleh memadam acara.");
+  if(!confirm(`Padam acara "${n}"?\n\nSemua penyertaan, rekod latihan dan rekod kejohanan acara ini akan turut dipadam.`)) return;
+  try{ await api("padamAcara",{acara:n,...who()});
+    DB.acara=(DB.acara||[]).filter(a=>String(a.ACARA)!==String(n));
+    DB.jurulatih=(DB.jurulatih||[]).filter(j=>String(j.ACARA)!==String(n));
+    DB.penyertaan=(DB.penyertaan||[]).filter(p=>String(p.ACARA)!==String(n));
+    DB.kejohanan=(DB.kejohanan||[]).filter(k=>String(k.ACARA)!==String(n));
+    if(DB.rekod) delete DB.rekod[n];
+    render(); toast("Acara dipadam");
+  }catch(e){ toastRalat(e) }
 }
 function formAcara(){
   overlay(`<div class="big">Tambah Acara</div>
@@ -719,8 +770,9 @@ async function simpanAcara(){
   const acara=$("#an").value.trim(), jenis=$("#aj").value, mod=($("#am")&&$("#am").value)||"INDIVIDU";
   if(!acara){ if(btn){btn.disabled=false;btn.textContent="Simpan";} return toast("Nama acara diperlukan"); }
   try{ await api("tambahAcara",{acara,jenis,unit:jenis==="MASA"?"saat":"meter",mod,...who()});
-    (DB.acara=DB.acara||[]).push({ACARA:acara.toUpperCase(),JENIS:jenis,UNIT:jenis==="MASA"?"saat":"meter",MOD:mod,AKTIF:"YA"});
+    (DB.acara=DB.acara||[]).push({ACARA:acara.toUpperCase(),JENIS:jenis,UNIT:jenis==="MASA"?"saat":"meter",MOD:mod,SUSUNAN:(DB.acara||[]).length+1,AKTIF:"YA"});
     DB.rekod=DB.rekod||{}; DB.rekod[acara.toUpperCase()]=[];
+    if(!isAdmin()){ (DB.jurulatih=DB.jurulatih||[]).push({ACARA:acara.toUpperCase(),"EMEL JURULATIH":String(U.emel).toLowerCase(),"NAMA JURULATIH":U.nama,"DILANTIK OLEH":U.nama,"TARIKH LANTIKAN":new Date().toLocaleString()}); }
     tutup(); render(); toast("Acara ditambah");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
 }
@@ -772,8 +824,8 @@ function vAcaraDetail(){
   <div class="card">
     <span class="badge">${info.JENIS==="MASA"?"MASA (saat / minit — cth 1:15.45)":"JARAK (METER)"}</span>
     <div class="small" style="margin-top:10px">Jurulatih dilantik (${jl.length}/10):</div>
-    <div>${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${isAdmin()?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
-    ${isAdmin()?`<button class="btn sm ghost" style="margin-top:10px" onclick="formJurulatih('${esc(n)}')">+ Lantik Jurulatih</button>`:""}
+    <div>${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${boleh?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
+    ${boleh?`<button class="btn sm ghost" style="margin-top:10px" onclick="formJurulatih('${esc(n)}')">+ Lantik Jurulatih Pembantu</button>`:""}
     ${boleh?`<button class="btn sm" style="margin-top:10px" onclick="formPenyertaan('${esc(n)}')">+ Tambah Atlet ke Acara</button>`:`<div class="small" style="margin-top:10px">Hanya jurulatih acara ini atau Master Admin boleh menambah/merekod.</div>`}
     ${boleh && isBerpasukan(n)?`<button class="btn sm" style="margin-top:8px;background:var(--p2)" onclick="formRekodRelay('${esc(n)}')">👥 + Rekod Berpasukan</button><div class="small" style="margin-top:4px">Acara berpasukan — satu rekod dikongsi oleh semua atlet dalam pasukan.</div>`:""}
     <button class="btn ghost sm" style="margin-top:10px" onclick="go('sejarah',{acara:'${esc(n)}'})">🕘 Sejarah Rekod Acara</button>
