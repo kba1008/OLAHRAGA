@@ -551,17 +551,30 @@ function vHome(){
 let kTarikh=today(), kCari="";
 const PENDING_KEH={}; /* atletId → true semasa hantar */
 
-function vKehadiran(){
+function tapisKehadiran(){
   const list=(DB.atlet||[]).filter(a=>{
     const q=kCari.toLowerCase();
     return !q||String(a["NAMA PENUH"]).toLowerCase().includes(q)||String(a.KATEGORI).toLowerCase().includes(q)||String(a.SEKOLAH).toLowerCase().includes(q);
   });
   const rec={}; (DB.kehadiran||[]).filter(k=>String(k.TARIKH).slice(0,10)===kTarikh).forEach(k=>rec[k["ATLET ID"]]=k);
+  return {list,rec};
+}
+function renderSenaraiKehadiran(){
+  const kotak=$("#senaraiK"); if(!kotak) return;
+  const {list,rec}=tapisKehadiran();
+  kotak.innerHTML=list.map(a=>itemKehadiran(a,rec[a.ID])).join("")||`<div class="card small">Tiada atlet dijumpai.</div>`;
+}
+function cariKehadiran(el){
+  kCari=el.value;
+  renderSenaraiKehadiran();
+}
+function vKehadiran(){
+  const {list,rec}=tapisKehadiran();
   const hadir=Object.values(rec).filter(k=>String(k.STATUS).toUpperCase()==="HADIR").length;
   app().innerHTML=`${topbar("Kehadiran Atlet","home")}
   <div class="card">
     <div class="row"><div><label>Tarikh</label><input type="date" id="kt" value="${kTarikh}" onchange="kTarikh=this.value;render()"/></div>
-    <div><label>Cari</label><input id="kc" value="${esc(kCari)}" placeholder="Nama / kategori / sekolah" oninput="kCari=this.value;clearTimeout(window._d);window._d=setTimeout(render,350)"/></div></div>
+    <div><label>Cari</label><input id="kc" value="${esc(kCari)}" placeholder="Nama / kategori / sekolah" autocomplete="off" oninput="cariKehadiran(this)"/></div></div>
     <div class="small" style="margin-top:10px">Hadir: <b style="color:var(--ok)">${hadir}</b> / ${(DB.atlet||[]).length} atlet</div>
     ${bolehUrusAtlet()?`<button class="btn sm" style="margin-top:10px" onclick="formAtlet()">+ Tambah Atlet Baharu</button>`:`<div class="small" style="margin-top:8px">Hanya Master Admin atau jurulatih yang dilantik boleh menambah / memadam atlet.</div>`}
   </div>
