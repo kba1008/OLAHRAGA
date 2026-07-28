@@ -84,6 +84,24 @@ option{background:#0d1330}
 .tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
 .tabs button{white-space:nowrap;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--mut);font-weight:800;font-size:12.5px;cursor:pointer}
 .tabs button.on{background:var(--grad);color:#fff;border-color:transparent}
+
+/* --- Susunan kad atlet lebih kemas pada paparan telefon --- */
+@media (max-width: 640px){
+  .item{flex-wrap:wrap; align-items:flex-start; gap:10px; padding:12px}
+  .item > .rank{width:34px;height:34px;border-radius:10px;font-size:13px}
+  .item > .av{width:44px;height:44px;border-radius:12px}
+  .item > div[style*="flex:1"]{min-width:0;flex:1 1 60%}
+  .item .nm{font-size:13.5px}
+  .item .right{
+    order:99; width:100%; margin-left:0; text-align:left;
+    display:flex; align-items:baseline; gap:6px 14px; flex-wrap:wrap;
+    padding:8px 2px 2px; border-top:1px dashed var(--line);
+  }
+  .item .right .nm{font-size:17px;color:var(--p2)}
+  .item .right .sub{margin-top:0}
+  .item .right .sub:before{content:"• ";opacity:.55}
+  .item .right .sub:first-of-type:before{content:""}
+}
 .sp{width:34px;height:34px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--p2);border-radius:50%;animation:s 1s linear infinite;margin:24px auto}
 @keyframes s{to{transform:rotate(360deg)}}
 .ov{position:fixed;inset:0;background:rgba(4,7,20,.82);display:flex;align-items:flex-end;justify-content:center;z-index:80;backdrop-filter:blur(6px)}
@@ -114,7 +132,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzsriaSCevYXRXKG03BpIpWz9_WP-El3o1cNYMm_uBbRDpS2dPeglmxQxeanD_pM7A8iQ/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz5JZTK1t1Ts5dFBNWfv2C6QXsS5MW_hnrV-ApQkrGQ1pGS12CrGL9n6gWUXz6L_q3C9Q/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
