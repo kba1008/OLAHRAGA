@@ -17,6 +17,7 @@ var SHEET_ACARA = "ACARA";
 var SHEET_JURULATIH = "JURULATIH_ACARA";
 var SHEET_PENYERTAAN = "PENYERTAAN";
 var SHEET_FAIL = "FAIL_ATLET";
+var SHEET_KEJOHANAN = "REKOD_KEJOHANAN";
 var PREFIX_REKOD = "REKOD_";
 
 /* ID Google Sheet UTAMA (pangkalan data). Skrip akan buka sheet ini terus,
@@ -42,6 +43,7 @@ HEADERS[SHEET_KEHADIRAN] = ["ID", "TARIKH", "ATLET ID", "NAMA ATLET", "KATEGORI"
 HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "MOD", "AKTIF"];
 HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
 HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
+HEADERS[SHEET_KEJOHANAN] = ["ID", "ACARA", "KATEGORI", "NAMA KEJOHANAN", "TAHUN", "PEMEGANG REKOD", "NILAI", "KEPUTUSAN", "CATATAN", "DITETAPKAN OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
 var HEADER_REKOD = ["ID", "TARIKH", "MASA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "KEPUTUSAN", "NILAI", "CATATAN", "DICATAT OLEH", "TARIKH & MASA REKOD"];
 
@@ -139,6 +141,7 @@ function setupPangkalanData() {
   dapatSheet(SHEET_JURULATIH, HEADERS[SHEET_JURULATIH], "#ff6d00");
   dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
   dapatSheet(SHEET_FAIL, HEADERS[SHEET_FAIL], "#0aa5d6");
+  dapatSheet(SHEET_KEJOHANAN, HEADERS[SHEET_KEJOHANAN], "#b45309");
   var sa = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
   if (sa.getLastRow() < 2) sa.getRange(2, 1, ACARA_LALAI.length, 4).setValues(ACARA_LALAI);
   baca(SHEET_ACARA).forEach(function (a) { if (a["ACARA"]) sheetRekod(a["ACARA"]); });
@@ -195,6 +198,7 @@ function semuaData(p) {
     penyertaan: baca(SHEET_PENYERTAAN),
     rekod: rekod,
     failAtlet: baca(SHEET_FAIL),
+    kejohanan: baca(SHEET_KEJOHANAN),
     masaPelayan: nowStr()
   };
 }
@@ -592,6 +596,65 @@ function simpanRekodLatihan(p) {
   };
 }
 
+/* ---------------- Rekod Kejohanan (sasaran setiap acara + kategori) ----------------
+   Hanya Master Admin dan jurulatih yang dilantik bagi acara berkenaan boleh
+   menambah / mengemas kini / memadam rekod kejohanan.                        */
+function simpanRekodKejohanan(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik bagi acara ini boleh menetapkan rekod kejohanan.");
+  var acara = String(p.acara || "").trim();
+  var kategori = String(p.kategori || "").toUpperCase().trim();
+  if (!acara) throw new Error("Acara diperlukan.");
+  if (!kategori) throw new Error("Kategori diperlukan.");
+  var nilai = Number(p.nilai);
+  if (!(nilai > 0)) throw new Error("Nilai rekod tidak sah.");
+  dapatSheet(SHEET_KEJOHANAN, HEADERS[SHEET_KEJOHANAN], "#b45309");
+  var s = ss().getSheetByName(SHEET_KEJOHANAN);
+  var tms = nowStr();
+  var baris = [
+    "", acara, kategori, p.namaKejohanan || "", p.tahun || "", p.pemegang || "",
+    nilai, p.keputusan || "", p.catatan || "", p.olehNama || "", tms
+  ];
+  var v = s.getDataRange().getValues();
+  if (p.id) {
+    for (var i = 1; i < v.length; i++) {
+      if (String(v[i][0]) === String(p.id)) {
+        baris[0] = p.id;
+        s.getRange(i + 1, 1, 1, baris.length).setValues([baris]);
+        return { ok: true, dikemaskini: true, rekod: objKejohanan(baris) };
+      }
+    }
+    throw new Error("Rekod kejohanan tidak dijumpai.");
+  }
+  /* Satu rekod sahaja bagi setiap acara + kategori — ganti jika sudah ada. */
+  for (var j = 1; j < v.length; j++) {
+    if (String(v[j][1]) === acara && String(v[j][2]).toUpperCase() === kategori) {
+      baris[0] = v[j][0];
+      s.getRange(j + 1, 1, 1, baris.length).setValues([baris]);
+      return { ok: true, dikemaskini: true, rekod: objKejohanan(baris) };
+    }
+  }
+  baris[0] = idBaharu("RK", SHEET_KEJOHANAN);
+  s.appendRow(baris);
+  return { ok: true, rekod: objKejohanan(baris) };
+}
+
+function objKejohanan(b) {
+  var o = {};
+  HEADERS[SHEET_KEJOHANAN].forEach(function (h, i) { o[h] = b[i]; });
+  return o;
+}
+
+function padamRekodKejohanan(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih yang dilantik bagi acara ini boleh memadam rekod kejohanan.");
+  var s = ss().getSheetByName(SHEET_KEJOHANAN);
+  if (!s) throw new Error("Rekod kejohanan tidak dijumpai.");
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === String(p.id)) { s.deleteRow(i + 1); return { ok: true }; }
+  }
+  throw new Error("Rekod kejohanan tidak dijumpai.");
+}
+
 function pastikanKolumAcara() {
   /* Migrasi ringan: pastikan header sheet ACARA ada kolum MOD (untuk projek lama). */
   var s = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
@@ -649,7 +712,9 @@ var TINDAKAN = {
   rekod: simpanRekodLatihan,
   kemaskiniRekod: kemaskiniRekod,
   padamRekod: padamRekod,
-  tambahAcara: tambahAcara
+  tambahAcara: tambahAcara,
+  rekodKejohanan: simpanRekodKejohanan,
+  padamRekodKejohanan: padamRekodKejohanan
 };
 
 function balas(obj, callback) {
