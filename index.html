@@ -135,6 +135,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .cropbox .mask{position:absolute;inset:0;box-shadow:0 0 0 9999px rgba(0,0,0,.55) inset;border-radius:20px;pointer-events:none}
 .fileit{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid var(--line);margin-bottom:8px}
 .fileic{width:38px;height:38px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 auto}
+@media (max-width:640px){.jl-acara{display:none!important}}
 </style>
 </head>
 <body>
@@ -710,7 +711,7 @@ function vAcara(){
       <div class="rank">${esc(String(n).slice(0,3))}</div>
       <div style="flex:1"><div class="nm">${esc(n)}</div>
         <div class="sub">${penyertaan(n).length} atlet • ${rekodAcara(n).length} rekod • ${a.JENIS==="MASA"?"Masa (saat / minit)":"Jarak (meter)"}</div>
-        <div class="sub">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
+        <div class="sub jl-acara">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
       <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
       ${susunBoleh?`<div><button class="btn sm bad" style="margin-top:8px" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button></div>`:""}</div>
