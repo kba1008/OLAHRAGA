@@ -148,7 +148,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzwRJicyHWpSofFusWA2ZsofqWbu_0MjzVBHpKcq_WjHTdp-0nTniRAAiHrJ4RSAIaXZA/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzjtJsU0HSos23p8DmowQ8oiGL2Bzv3gPAFSweN_PzbSX2jIvDge-wZajil4ZakrhQtQQ/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1430,14 +1430,11 @@ function vDashboard(){
         const top3Html=r.top3&&r.top3.length
           ? r.top3.map((t,idx)=>`${idx+1}. <b>${fmtNilai(t.nilai,info)}</b>${t.tarikh?` <span style="opacity:.7">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join(" • ")
           : "-";
-        const rkAtlet=kejohananKat(dAcara,r.kategori);
-        const rkAtletTxt=rkAtlet?`${esc(rkAtlet.KEPUTUSAN||fmtNilai(Number(rkAtlet.NILAI),info))}${rkAtlet["NAMA KEJOHANAN"]?" ("+esc(rkAtlet["NAMA KEJOHANAN"])+(rkAtlet.TAHUN?" "+esc(rkAtlet.TAHUN):"")+")":""}`:"-";
         return `<div class="item" onclick="go('profil',{id:'${esc(r.id)}'})">
           <div class="rank ${i===0?"g1":i===1?"g2":i===2?"g3":""}">${i+1}</div>
           <img class="av" src="${avatar(a)}" ${avErr(a)}/>
           <div style="flex:1"><div class="nm">${esc(r.nama)}</div><div class="sub">${esc(r.kategori)} • ${esc(r.sekolah)} • ${r.n} rekod</div>
             <div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center">
-              <span>🏆 Rekod Kejohanan: <b>${rkAtletTxt}</b></span>
               <span>🏅 Rekod Peribadi: <b>${r.rekodPeribadi?esc(r.rekodPeribadi):"-"}</b></span>
               <span>⭐ Terbaik Latihan: <b>${fmtNilai(r.terbaik,info)}</b></span>
             </div>
@@ -1596,9 +1593,9 @@ function cetakLaporan(mod){
         const rkKat=kejohananKat(n,k);
         const rkTxt=rkKat?` <span style="font-weight:400;text-transform:none;color:#0b3b6f">• 🏆 ${esc(rkKat.KEPUTUSAN||fmtNilai(Number(rkKat.NILAI),info))}${rkKat["NAMA KEJOHANAN"]?" ("+esc(rkKat["NAMA KEJOHANAN"])+(rkKat.TAHUN?" "+esc(rkKat.TAHUN):"")+")":""}${rkKat["PEMEGANG REKOD"]?" — "+esc(rkKat["PEMEGANG REKOD"]):""}</span>`:"";
         isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet${rkTxt}</h3>
-        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
+        <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
-          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRK(rkKat,info)}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
         });
         isi+=`</tbody></table>`;
       });
