@@ -148,7 +148,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyAVTiWAkvdScypPKnvgy5XumP7btNWT9wJj3BNZbz-93I4xDpQLfIedSHqYLoH2ki9Yw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzjtJsU0HSos23p8DmowQ8oiGL2Bzv3gPAFSweN_PzbSX2jIvDge-wZajil4ZakrhQtQQ/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -842,33 +842,42 @@ function vAcaraDetail(){
   ${Object.keys(groups).length===0?`<div class="card small">Belum ada atlet dalam acara ini.</div>`:
     Object.keys(groups).sort().map(k=>{
       const list=groups[k];
-      const hdr=AD_KAT==="__ALL__"?`<div class="card" style="padding:10px 14px;margin-bottom:8px"><b>Kategori: ${esc(k)}</b> <span class="small">• ${list.length} atlet</span></div>`:"";
+      const hdr=headerKategoriRekod(n,info,k,list.length,boleh);
       return hdr + list.map(p=>itemAcaraDetail(n,p,info,boleh,t)).join("");
     }).join("")}
   </div>`;
 }
 /* ---------- Rekod Kejohanan (sasaran) mengikut acara + kategori ---------- */
 function kadKejohanan(n,info,boleh,kats){
-  const senarai=kejohananAcara(n).slice().sort((a,b)=>String(a.KATEGORI).localeCompare(String(b.KATEGORI)));
-  const baris=senarai.length?senarai.map(k=>`
-    <div class="item" style="align-items:flex-start">
-      <div class="rank" style="background:linear-gradient(135deg,#f59e0b,#b45309)">🏆</div>
-      <div style="flex:1">
-        <div class="nm">${esc(k.KATEGORI)} — ${esc(k.KEPUTUSAN||fmtNilai(Number(k.NILAI),info))}</div>
-        <div class="sub">${esc(k["NAMA KEJOHANAN"]||"Rekod Kejohanan")}${k.TAHUN?" • "+esc(k.TAHUN):""}${k["PEMEGANG REKOD"]?" • "+esc(k["PEMEGANG REKOD"]):""}</div>
-        ${k.CATATAN?`<div class="sub">${esc(k.CATATAN)}</div>`:""}
-        <div class="sub small">Ditetapkan oleh ${esc(k["DITETAPKAN OLEH"]||"-")}</div>
-      </div>
-      ${boleh?`<div class="right"><button class="btn sm ghost" onclick="formKejohanan('${esc(n)}','${esc(k.KATEGORI)}','${esc(k.ID)}')">✎</button>
-      <button class="btn sm ghost" style="color:var(--bad)" onclick="padamKejohanan('${esc(n)}','${esc(k.ID)}')">✕</button></div>`:""}
-    </div>`).join(""):`<div class="card small" style="margin-bottom:8px">Belum ada rekod kejohanan ditetapkan bagi acara ini.</div>`;
   return `<div class="card">
     <h3 style="margin:0 0 6px">🏆 Rekod Kejohanan — ${esc(n)}</h3>
-    <div class="small">Sasaran rasmi bagi setiap kategori. Jurulatih boleh membandingkan pencapaian atlet dengan rekod ini.</div>
+    <div class="small">Sasaran rasmi bagi setiap kategori dipaparkan pada tajuk kategori di bawah untuk memudahkan pemantauan semasa latihan.</div>
     ${boleh?`<button class="btn sm" style="margin-top:10px" onclick="formKejohanan('${esc(n)}','')">+ Tambah / Kemas Kini Rekod Kejohanan</button>`
       :`<div class="small" style="margin-top:8px">Hanya Master Admin & jurulatih dilantik boleh menetapkan rekod kejohanan.</div>`}
-  </div>
-  ${baris}`;
+  </div>`;
+}
+/* Header kategori dengan rekod kejohanan inline */
+function headerKategoriRekod(n,info,k,bil,boleh){
+  const rk=kejohananKat(n,k);
+  const rekodHtml=rk
+    ? `<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">
+         <span>🏆 <b>${esc(rk.KEPUTUSAN||fmtNilai(Number(rk.NILAI),info))}</b></span>
+         <span style="opacity:.85">${esc(rk["NAMA KEJOHANAN"]||"Rekod Kejohanan")}${rk.TAHUN?" • "+esc(rk.TAHUN):""}${rk["PEMEGANG REKOD"]?" • "+esc(rk["PEMEGANG REKOD"]):""}</span>
+         ${boleh?`<span style="margin-left:auto;display:inline-flex;gap:4px">
+           <button class="btn sm ghost" onclick="formKejohanan('${esc(n)}','${esc(k)}','${esc(rk.ID)}')">✎</button>
+           <button class="btn sm ghost" style="color:var(--bad)" onclick="padamKejohanan('${esc(n)}','${esc(rk.ID)}')">✕</button>
+         </span>`:""}
+       </div>`
+    : (boleh
+        ? `<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+             <span style="opacity:.8">🏆 Belum ada rekod kejohanan bagi kategori ini.</span>
+             <button class="btn sm ghost" onclick="formKejohanan('${esc(n)}','${esc(k)}')">+ Tetapkan</button>
+           </div>`
+        : `<div class="small" style="margin-top:6px;opacity:.8">🏆 Belum ada rekod kejohanan bagi kategori ini.</div>`);
+  return `<div class="card" style="padding:10px 14px;margin-bottom:8px">
+    <div><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span></div>
+    ${rekodHtml}
+  </div>`;
 }
 function formKejohanan(n,kat,id){
   const info=acaraInfo(n);
