@@ -148,7 +148,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzwRJicyHWpSofFusWA2ZsofqWbu_0MjzVBHpKcq_WjHTdp-0nTniRAAiHrJ4RSAIaXZA/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzjtJsU0HSos23p8DmowQ8oiGL2Bzv3gPAFSweN_PzbSX2jIvDge-wZajil4ZakrhQtQQ/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -824,14 +824,16 @@ function vAcaraDetail(){
   app().innerHTML=`${topbar(n,"acara")}
   <div class="card">
     <span class="badge">${info.JENIS==="MASA"?"MASA (saat / minit — cth 1:15.45)":"JARAK (METER)"}</span>
-    <div class="small" style="margin-top:10px">Jurulatih dilantik (${jl.length}/10):</div>
-    <div>${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${boleh?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
+    <div class="small" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>Jurulatih dilantik (${jl.length}/10)</span>
+      <button class="btn sm ghost" onclick="(function(el){var w=document.getElementById('jlListWrap');var show=w.style.display==='none';w.style.display=show?'block':'none';el.textContent=show?'Sembunyi senarai':'Papar senarai';})(this)">Papar senarai</button>
+    </div>
+    <div id="jlListWrap" style="display:none">${jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])} ${boleh?`<a href="#" onclick="event.preventDefault();buangJ('${esc(n)}','${esc(j["EMEL JURULATIH"])}')" style="color:var(--bad)">✕</a>`:""}</span>`).join("")||'<span class="chip">Tiada</span>'}</div>
     ${boleh?`<button class="btn sm ghost" style="margin-top:10px" onclick="formJurulatih('${esc(n)}')">+ Lantik Jurulatih Pembantu</button>`:""}
     ${boleh?`<button class="btn sm" style="margin-top:10px" onclick="formPenyertaan('${esc(n)}')">+ Tambah Atlet ke Acara</button>`:`<div class="small" style="margin-top:10px">Hanya jurulatih acara ini atau Master Admin boleh menambah/merekod.</div>`}
     ${boleh && isBerpasukan(n)?`<button class="btn sm" style="margin-top:8px;background:var(--p2)" onclick="formRekodRelay('${esc(n)}')">👥 + Rekod Berpasukan</button><div class="small" style="margin-top:4px">Acara berpasukan — satu rekod dikongsi oleh semua atlet dalam pasukan.</div>`:""}
     <button class="btn ghost sm" style="margin-top:10px" onclick="go('sejarah',{acara:'${esc(n)}'})">🕘 Sejarah Rekod Acara</button>
   </div>
-  ${kadKejohanan(n,info,boleh,kats)}
   <div class="card">
     <h3 style="margin:0 0 6px">Analisis Atlet</h3>
     <div class="small">Tapis mengikut kategori & susunan untuk memudahkan jurulatih menganalisis.</div>
