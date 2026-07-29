@@ -97,9 +97,12 @@ function namaSheetRekod(acara) {
 function sheetRekod(acara) { return dapatSheet(namaSheetRekod(acara), HEADER_REKOD, "#00a3c4"); }
 
 /* Tukar sel Date kepada teks yang betul supaya tidak keluar 1899-12-30T...Z */
+var TZ_MY = "Asia/Kuala_Lumpur";
+function tz_() { return TZ_MY; }
+
 function nilaiSelamat(header, v) {
   if (!(v instanceof Date)) return v;
-  var tz = Session.getScriptTimeZone();
+  var tz = tz_();
   var hh = String(header || "").toUpperCase();
   if (hh === "MASA") return Utilities.formatDate(v, tz, "HH:mm:ss");
   if (hh === "TARIKH") return Utilities.formatDate(v, tz, "yyyy-MM-dd");
@@ -125,10 +128,10 @@ function idBaharu(prefix, sheetNama) {
   return prefix + ("000" + (n + 1)).slice(-4) + "-" + String(Date.now()).slice(-4);
 }
 
-function nowStr() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss"); }
-function hariIni() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"); }
+function nowStr() { return Utilities.formatDate(new Date(), tz_(), "yyyy-MM-dd HH:mm:ss"); }
+function hariIni() { return Utilities.formatDate(new Date(), tz_(), "yyyy-MM-dd"); }
 function tarikhStr(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (v instanceof Date) return Utilities.formatDate(v, tz_(), "yyyy-MM-dd");
   return String(v || "").substring(0, 10);
 }
 
@@ -624,7 +627,7 @@ function simpanRekodLatihan(p) {
   var idJoin = atletIds.join(", ");
   var namaJoin = namaList.join(" + ");
   var s = sheetRekod(p.acara);
-  var masa = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "HH:mm:ss");
+  var masa = Utilities.formatDate(new Date(), tz_(), "HH:mm:ss");
   var id = idBaharu("R", s.getName());
   var tms = nowStr();
   s.appendRow([id, tarikh, masa, idJoin, namaJoin, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, tms]);
@@ -884,7 +887,7 @@ function proses(payload, callback) {
       kod: kodRalat(err && err.message),
       error: String((err && err.message) || err),
       aksi: (payload && payload.action) || "-",
-      masa: new Date().toISOString(),
+      masa: nowStr(),
       butiran: String((err && err.stack) || "").slice(0, 600)
     }, callback);
   }

@@ -208,7 +208,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzRgA4aVw2qYhw4SFFBC4rgbYa1avn7JsVP1S6JZb-u6H9ADEQMZOLSmeNuLsuqRp03ug/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxpr8m4MH2q2wjC21lhAPafX2k3IIBtuCdFLCpNXxgT2e8a9P7ctBgjZv4qx3OLJpAFag/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -219,7 +219,20 @@ let PENDING=0; /* kiraan penulisan latar belakang */
 
 const $=s=>document.querySelector(s), app=()=>$("#app");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const today=()=>new Date().toISOString().slice(0,10);
+/* ---------- Zon waktu Malaysia (Asia/Kuala_Lumpur, UTC+8) ---------- */
+const TZ_MY="Asia/Kuala_Lumpur";
+function bahagianMY(d){
+  d=d||new Date();
+  const f=new Intl.DateTimeFormat("en-GB",{timeZone:TZ_MY,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+  const o={}; f.formatToParts(d).forEach(x=>{o[x.type]=x.value});
+  if(o.hour==="24") o.hour="00";
+  return o;
+}
+function tarikhMY(d){ const o=bahagianMY(d); return o.year+"-"+o.month+"-"+o.day; }
+function jamMY(d){ const o=bahagianMY(d); return o.hour+":"+o.minute+":"+o.second; }
+function capMY(d){ return tarikhMY(d)+" "+jamMY(d); }              /* yyyy-MM-dd HH:mm:ss */
+function capMasaMY(d){ return fmtTarikh(tarikhMY(d))+" "+fmtMasa(jamMY(d)); } /* dd/MM/yyyy h.mmam */
+const today=()=>tarikhMY();
 const isAdmin=()=>U&&U.peranan==="ADMIN";
 /* Master Admin ATAU jurulatih yang telah dilantik untuk mana-mana acara */
 const isJurulatihDilantik=()=>!!U&&((typeof DB!=="undefined"&&DB&&DB.jurulatih)||[]).some(j=>String(j["EMEL JURULATIH"]||"").toLowerCase().trim()===String(U.emel||"").toLowerCase().trim());
@@ -240,7 +253,7 @@ function bumpPending(d){ PENDING=Math.max(0,PENDING+d); if(PENDING>0) syncShow(`
    ============================================================ */
 const LOG=[];
 function logTambah(jenis,mesej,butiran){
-  LOG.unshift({masa:new Date().toLocaleString("ms-MY"),jenis,mesej:String(mesej||""),butiran:String(butiran||"")});
+  LOG.unshift({masa:capMY(),jenis,mesej:String(mesej||""),butiran:String(butiran||"")});
   if(LOG.length>80) LOG.pop();
 }
 function urlSelamat(u){
@@ -313,7 +326,7 @@ function api(action,payload){
 
 function laporanTeks(e){
   return ["=== LAPORAN RALAT ATLETTRACK ===",
-  "Masa      : "+new Date().toLocaleString("ms-MY"),
+  "Masa      : "+capMY()+" (Waktu Malaysia)",
   "Kod Ralat : "+(e.kod||"UI-000"),
   "Mesej     : "+(e.message||""),
   "Punca     : "+(e.punca||"-"),
@@ -447,9 +460,9 @@ function fmtNilaiUnit(v,jenis,unit){ return fmtNilai(v,{JENIS:jenis,UNIT:unit});
    TARIKH : dd/MM/yyyy      MASA : 8.00am / 3.45pm                        */
 function masaKunci(v){ /* HH:mm:ss untuk tujuan susunan sahaja */
   if(v===null||v===undefined||v==="") return "";
-  if(v instanceof Date) return v.toTimeString().slice(0,8);
+  if(v instanceof Date) return jamMY(v);
   const t=String(v).trim();
-  if(t.indexOf("T")>-1 && /Z$/.test(t)){ const d=new Date(t); if(!isNaN(d)) return d.toISOString().slice(11,19); }
+  if(t.indexOf("T")>-1 && /Z$/.test(t)){ const d=new Date(t); if(!isNaN(d)) return jamMY(d); }
   const m=t.match(/(\d{1,2}):(\d{2})(:(\d{2}))?/);
   return m?(("0"+m[1]).slice(-2)+":"+m[2]+":"+(m[4]||"00")):t;
 }
@@ -465,7 +478,7 @@ function fmtMasa(v){
 function fmtTarikh(v){
   if(v===null||v===undefined||v==="") return "";
   let t;
-  if(v instanceof Date) t=v.toISOString().slice(0,10);
+  if(v instanceof Date) t=tarikhMY(v);
   else t=String(v).trim();
   const iso=t.match(/(\d{4})-(\d{2})-(\d{2})/);
   if(iso) return iso[3]+"/"+iso[2]+"/"+iso[1];
@@ -488,7 +501,7 @@ function setKehadiranLokal(atletId,tarikh,status,nama,kategori,sekolah){
   const idx=(DB.kehadiran||[]).findIndex(k=>String(k["ATLET ID"])===String(atletId) && String(k.TARIKH).slice(0,10)===tarikh);
   const row={ "ID":(idx>-1?DB.kehadiran[idx].ID:"K-local-"+Date.now()),
     "TARIKH":tarikh,"ATLET ID":atletId,"NAMA ATLET":nama,"KATEGORI":kategori||"","SEKOLAH":sekolah||"",
-    "STATUS":status,"CATATAN":"","DICATAT OLEH":U?U.nama:"","TARIKH & MASA":new Date().toLocaleString("ms-MY") };
+    "STATUS":status,"CATATAN":"","DICATAT OLEH":U?U.nama:"","TARIKH & MASA":capMY() };
   if(idx>-1) DB.kehadiran[idx]=row; else (DB.kehadiran=DB.kehadiran||[]).push(row);
 }
 function tambahRekodLokal(acara,rekod){
@@ -737,7 +750,7 @@ async function simpanAtlet(id){
       }
     }else{
       const r=await api("tambahAtlet",p);
-      (DB.atlet=DB.atlet||[]).push({ID:r.id,"NAMA PENUH":p.nama,"NO IC":p.noIc,JANTINA:p.jantina,KATEGORI:p.kategori,SEKOLAH:p.sekolah,"GAMBAR (URL)":r.gambar||"",CATATAN:p.catatan,"DIDAFTAR OLEH":U.nama,"TARIKH DAFTAR":new Date().toLocaleString()});
+      (DB.atlet=DB.atlet||[]).push({ID:r.id,"NAMA PENUH":p.nama,"NO IC":p.noIc,JANTINA:p.jantina,KATEGORI:p.kategori,SEKOLAH:p.sekolah,"GAMBAR (URL)":r.gambar||"",CATATAN:p.catatan,"DIDAFTAR OLEH":U.nama,"TARIKH DAFTAR":capMY()});
     }
     tutup(); render(); toast("Berjaya disimpan");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan ke Google Sheet";} }
@@ -835,7 +848,7 @@ async function simpanAcara(){
   try{ await api("tambahAcara",{acara,jenis,unit:jenis==="MASA"?"saat":"meter",mod,...who()});
     (DB.acara=DB.acara||[]).push({ACARA:acara.toUpperCase(),JENIS:jenis,UNIT:jenis==="MASA"?"saat":"meter",MOD:mod,SUSUNAN:(DB.acara||[]).length+1,AKTIF:"YA"});
     DB.rekod=DB.rekod||{}; DB.rekod[acara.toUpperCase()]=[];
-    if(!isAdmin()){ (DB.jurulatih=DB.jurulatih||[]).push({ACARA:acara.toUpperCase(),"EMEL JURULATIH":String(U.emel).toLowerCase(),"NAMA JURULATIH":U.nama,"DILANTIK OLEH":U.nama,"TARIKH LANTIKAN":new Date().toLocaleString()}); }
+    if(!isAdmin()){ (DB.jurulatih=DB.jurulatih||[]).push({ACARA:acara.toUpperCase(),"EMEL JURULATIH":String(U.emel).toLowerCase(),"NAMA JURULATIH":U.nama,"DILANTIK OLEH":U.nama,"TARIKH LANTIKAN":capMY()}); }
     tutup(); render(); toast("Acara ditambah");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
 }
@@ -1068,7 +1081,7 @@ async function simpanJ(n){
   const v=$("#jg").value; if(!v){ if(btn){btn.disabled=false;btn.textContent="Lantik";} return toast("Tiada guru dipilih"); }
   const [emel,nama]=v.split("|");
   try{ await api("lantikJurulatih",{acara:n,emel,nama,...who()});
-    (DB.jurulatih=DB.jurulatih||[]).push({ACARA:n,"EMEL JURULATIH":emel,"NAMA JURULATIH":nama,"DILANTIK OLEH":U.nama,"TARIKH LANTIKAN":new Date().toLocaleString()});
+    (DB.jurulatih=DB.jurulatih||[]).push({ACARA:n,"EMEL JURULATIH":emel,"NAMA JURULATIH":nama,"DILANTIK OLEH":U.nama,"TARIKH LANTIKAN":capMY()});
     tutup(); render(); toast("Jurulatih dilantik");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Lantik";} }
 }
@@ -1118,7 +1131,7 @@ async function simpanP(n){
   const a=id?atletById(id):null;
   if(!a){ if(btn){btn.disabled=false;btn.textContent="Tambah";} return toast("Pilih atlet dari senarai"); }
   try{ await api("tambahPenyertaan",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,tarikh:today(),...who()});
-    (DB.penyertaan=DB.penyertaan||[]).push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:new Date().toLocaleString()});
+    (DB.penyertaan=DB.penyertaan||[]).push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:capMY()});
     tutup(); render(); toast("Atlet ditambah");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Tambah";} }
 }
@@ -1611,7 +1624,7 @@ function gayaLaporan(){
 
 function bukaLaporan(tajuk,isi){
   const kini=new Date();
-  const tarikhCetak=fmtTarikh(kini.toISOString().slice(0,10))+" "+fmtMasa(("0"+kini.getHours()).slice(-2)+":"+("0"+kini.getMinutes()).slice(-2));
+  const tarikhCetak=capMasaMY(kini);
   const html=`<!doctype html><html lang="ms"><head><meta charset="utf-8"/>
   <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style></head><body>
   <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
@@ -1795,7 +1808,7 @@ function vMatriks(){
   const totBaris=id=>(daftar[id]?daftar[id].size:0);
   const totLajur=nama=>atlet.filter(a=>daftar[String(a.ID)]&&daftar[String(a.ID)].has(nama)).length;
   const totKeseluruhan=atlet.reduce((s,a)=>s+totBaris(String(a.ID)),0);
-  const tarikhCetak=new Date().toLocaleDateString("ms-MY",{day:"2-digit",month:"long",year:"numeric"});
+  const tarikhCetak=new Date().toLocaleDateString("ms-MY",{timeZone:TZ_MY,day:"2-digit",month:"long",year:"numeric"});
   const sekolahUtama=(U&&U.sekolah)||"—";
 
   app().innerHTML=`${topbar("Matriks Peserta × Acara","home")}
@@ -1926,7 +1939,7 @@ async function simpanAcaraAtlet(id){
     const kekal=new Set(pilih);
     DB.penyertaan=(DB.penyertaan||[]).filter(p=>String(p["ATLET ID"])!==String(id)||kekal.has(p.ACARA));
     const sedia=new Set((DB.penyertaan||[]).filter(p=>String(p["ATLET ID"])===String(id)).map(p=>p.ACARA));
-    pilih.forEach(n=>{ if(!sedia.has(n)) DB.penyertaan.push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:new Date().toLocaleString()}); });
+    pilih.forEach(n=>{ if(!sedia.has(n)) DB.penyertaan.push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:capMY()}); });
     tutup(); render(); toast("Acara peserta dikemas kini ("+pilih.length+" acara)");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
 }
