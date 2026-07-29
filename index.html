@@ -136,7 +136,6 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .fileit{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid var(--line);margin-bottom:8px}
 .fileic{width:38px;height:38px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 auto}
 @media (max-width:640px){.jl-acara{display:none!important}}
-</style>
 
 /* ===== Matriks Peserta × Acara (Cek List) ===== */
 .mx-wrap{background:#fff;color:#0b1533;border-radius:16px;padding:18px;box-shadow:var(--sh);border:1px solid var(--line)}
@@ -199,7 +198,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzfz5nmWOaLpK0-1jvjAxglMoTcUS-T_P_F6Qd_6bHn-2i-4fR410A4AvQCRd8KR_t2Ow/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzPOhWVc07oWAFbd56Qt8RiJwiOKWbHbzufPU6UPUbysw02ufrtpqevHEvU_zpqUE2m2w/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -533,7 +532,7 @@ function render(){
   ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,matriks:vMatriks,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
 }
 function navBar(){
-  const t=[["home","🏠","Utama"],["kehadiran","✅","Kehadiran"],["acara","🏆","Rekod"],["dashboard","📊","Dashboard"],["saya","👤","Saya"]];
+  const t=[["home","🏠","Utama"],["kehadiran","✅","Kehadiran"],["acara","🏆","Rekod"],["matriks","📋","Matriks"],["saya","👤","Saya"]];
   $("#nav").innerHTML=t.map(([k,i,l])=>`<button class="${VIEW===k?"on":""}" onclick="go('${k}')"><span class="ni">${i}</span>${l}</button>`).join("");
 }
 function head(title,sub){
