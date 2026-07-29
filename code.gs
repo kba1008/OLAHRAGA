@@ -556,6 +556,42 @@ function tambahPenyertaan(p) {
   return { ok: true };
 }
 
+/* Master Admin: tetapkan (ganti) senarai acara bagi SEORANG atlet sekaligus.
+   Tidak memerlukan kehadiran hari ini — untuk kerja penyusunan pukal. */
+function tetapkanAcaraAtlet(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh mengubah acara peserta secara pukal.");
+  var atletId = String(p.atletId || "");
+  if (!atletId) throw new Error("Atlet tidak dinyatakan.");
+
+  var mahu = [];
+  if (Object.prototype.toString.call(p.acara) === "[object Array]") mahu = p.acara.slice();
+  else if (p.acara) mahu = String(p.acara).split("|");
+  mahu = mahu.map(function (x) { return String(x).trim(); }).filter(function (x) { return x; });
+
+  var atlet = null, sen = baca(SHEET_ATLET);
+  for (var k = 0; k < sen.length; k++) if (String(sen[k]["ID"]) === atletId) { atlet = sen[k]; break; }
+  if (!atlet) throw new Error("Atlet tidak dijumpai.");
+
+  dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  var s = ss().getSheetByName(SHEET_PENYERTAAN);
+  var v = s.getDataRange().getValues();
+  var sedia = {}, buang = 0;
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][1]) !== atletId) continue;
+    var nm = String(v[i][0]);
+    if (mahu.indexOf(nm) >= 0) { sedia[nm] = true; }
+    else { s.deleteRow(i + 1); buang++; }
+  }
+  var tambah = 0;
+  for (var j = 0; j < mahu.length; j++) {
+    if (sedia[mahu[j]]) continue;
+    s.appendRow([mahu[j], atletId, atlet["NAMA PENUH"], atlet["KATEGORI"] || "", atlet["SEKOLAH"] || "", "", p.olehNama, nowStr()]);
+    sheetRekod(mahu[j]);
+    tambah++;
+  }
+  return { ok: true, acara: mahu, tambah: tambah, buang: buang };
+}
+
 function simpanRekodLatihan(p) {
   if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh merekod.");
   var tarikh = p.tarikh || hariIni();
@@ -778,6 +814,7 @@ var TINDAKAN = {
   buangJurulatih: buangJurulatih,
   tambahPenyertaan: tambahPenyertaan,
   padamPenyertaan: padamPenyertaan,
+  tetapkanAcaraAtlet: tetapkanAcaraAtlet,
   rekod: simpanRekodLatihan,
   kemaskiniRekod: kemaskiniRekod,
   padamRekod: padamRekod,

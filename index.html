@@ -173,6 +173,10 @@ table.mx td.cx.off{color:#c8ced9}
 table.mx td.tot{text-align:center;font-weight:800;background:#fbfcff !important;color:#0b1533}
 table.mx tfoot td{background:#0b1533 !important;color:#fff;font-weight:800;padding:10px;text-align:center;font-size:11.5px;letter-spacing:.4px;border:0}
 table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
+.mx-edit{background:transparent;border:0;padding:0;font:inherit;font-weight:700;color:#0b1533;text-align:left;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.mx-edit:hover{color:#6d28f9}
+.only-print{display:none}
+@media print{.only-print{display:inline}}
 .mx-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;color:#4a5878;font-size:12px}
 .mx-legend .lg{display:flex;align-items:center;gap:6px}
 .mx-legend .sw{display:inline-block;width:14px;height:14px;border-radius:4px;background:#e6f6ee;border:1px solid #0a8f4b}
@@ -1815,6 +1819,7 @@ function vMatriks(){
     <button class="mx-btn" onclick="window.print()">🖨 Cetak / Simpan PDF</button>
     <button class="mx-btn alt" onclick="mxCari='';mxSekolah='';mxKategori='';mxSortAtlet='kat-nama';vMatriks()">Reset</button>
   </div>
+  ${isAdmin()?`<div class="mx-tools no-print" style="margin-top:-4px"><div style="font-size:12px;color:#9fb0d9;font-weight:600">✎ Mod Master Admin: klik <b>nama peserta</b> untuk tanda / buang acara mereka terus dari senarai ini — tidak perlu buka acara satu per satu.</div></div>`:""}
 
   <div class="mx-wrap">
     <div class="mx-head">
@@ -1855,7 +1860,9 @@ function vMatriks(){
             const kat=String(a.KATEGORI||"—");
             const groupStart=isKat && kat!==prevKat ? (prevKat=kat, "group-start") : "";
             return `<tr class="${groupStart}">
-              <td class="nm"><span class="no">${String(i+1).padStart(2,"0")}</span>${esc(a["NAMA PENUH"]||"")}</td>
+              <td class="nm">${isAdmin()
+                ? `<span class="no">${String(i+1).padStart(2,"0")}</span><button class="mx-edit no-print" onclick="mxUbahAcara('${esc(id)}')" title="Ubah acara peserta ini">${esc(a["NAMA PENUH"]||"")} ✎</button><span class="only-print">${esc(a["NAMA PENUH"]||"")}</span>`
+                : `<span class="no">${String(i+1).padStart(2,"0")}</span>${esc(a["NAMA PENUH"]||"")}`}</td>
               <td class="sk">${esc(a.SEKOLAH||"—")}</td>
               <td class="kt">${esc(kat)}</td>
               ${acara.map(ev=>{
@@ -1885,6 +1892,43 @@ function vMatriks(){
       <div>Disahkan oleh: ${esc((U&&U.nama)||"—")} • ${esc((U&&U.jawatan)||"")}</div>
     </div>`}
   </div>`;
+}
+
+/* ---------- Master Admin: ubah acara peserta secara pukal ---------- */
+function mxUbahAcara(id){
+  if(!isAdmin()) return toast("Hanya Master Admin boleh mengubah acara peserta.");
+  const a=atletById(id); if(!a) return toast("Atlet tidak dijumpai");
+  const semua=acaraList();
+  const ada=new Set(semua.filter(ev=>penyertaan(ev.ACARA).some(p=>String(p["ATLET ID"])===String(id))).map(ev=>ev.ACARA));
+  const baris=semua.map(ev=>{
+    const cari=(String(ev.ACARA||"")+" "+String(ev.JENIS||"")).toLowerCase();
+    return `<label class="atletPick" data-cari="${esc(cari)}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer">
+      <input type="checkbox" class="mxAc" value="${esc(ev.ACARA)}" ${ada.has(ev.ACARA)?"checked":""}/>
+      <span style="flex:1;min-width:0"><div style="font-weight:600">${esc(ev.ACARA)}</div><div class="small">${esc(ev.JENIS==="MASA"?"Masa":"Jarak")}${ev.MOD?" • "+esc(ev.MOD):""}</div></span>
+    </label>`;
+  }).join("");
+  overlay(`<div class="big">Ubah Acara — ${esc(a["NAMA PENUH"]||"")}</div>
+  <div class="small">${esc(a.KATEGORI||"")} • ${esc(a.SEKOLAH||"")}</div>
+  <p class="small">Tanda semua acara yang disertai peserta ini, kemudian Simpan. Tiada syarat kehadiran bagi Master Admin.</p>
+  <label>Cari acara</label>
+  <input id="paCari" placeholder="Taip nama acara…" autocomplete="off" oninput="tapisAtletPick(this.value)"/>
+  <div id="paSenarai" style="max-height:45vh;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:10px;margin-top:6px">${baris||'<div class="small" style="padding:10px">Tiada acara aktif.</div>'}</div>
+  <div class="small" id="paKira" style="margin-top:4px">${semua.length} acara</div>
+  <button class="btn" id="btnMX" onclick="simpanAcaraAtlet('${esc(id)}')">Simpan</button>
+  <button class="btn ghost" onclick="tutup()">Batal</button>`);
+}
+async function simpanAcaraAtlet(id){
+  const btn=$("#btnMX"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  const a=atletById(id)||{};
+  const pilih=[...document.querySelectorAll("#paSenarai input.mxAc:checked")].map(el=>el.value);
+  try{
+    await api("tetapkanAcaraAtlet",{atletId:id,acara:pilih.join("|"),...who()});
+    const kekal=new Set(pilih);
+    DB.penyertaan=(DB.penyertaan||[]).filter(p=>String(p["ATLET ID"])!==String(id)||kekal.has(p.ACARA));
+    const sedia=new Set((DB.penyertaan||[]).filter(p=>String(p["ATLET ID"])===String(id)).map(p=>p.ACARA));
+    pilih.forEach(n=>{ if(!sedia.has(n)) DB.penyertaan.push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:new Date().toLocaleString()}); });
+    tutup(); render(); toast("Acara peserta dikemas kini ("+pilih.length+" acara)");
+  }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
 }
 
 function vDiagnostik(){
