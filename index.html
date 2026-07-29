@@ -28,6 +28,9 @@ body{
   min-height:100vh;padding-bottom:96px
 }
 .wrap{max-width:880px;margin:0 auto;padding:16px}
+.wrap.full{max-width:100%;padding:0}
+.wrap.full .top{padding:16px 16px 0}
+.wrap.full .mx-tools{padding:0 16px}
 .hide{display:none!important}
 h1,h2,h3{margin:0 0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh);backdrop-filter:blur(14px);margin-bottom:14px}
@@ -198,7 +201,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxpr8m4MH2q2wjC21lhAPafX2k3IIBtuCdFLCpNXxgT2e8a9P7ctBgjZv4qx3OLJpAFag/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzPOhWVc07oWAFbd56Qt8RiJwiOKWbHbzufPU6UPUbysw02ufrtpqevHEvU_zpqUE2m2w/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -528,6 +531,7 @@ function render(){
   if(!U) return skrinAuth();
   if(!DB) return muat();
   $("#nav").classList.remove("hide");
+  $("#app").classList.toggle("full",VIEW==="matriks");
   navBar();
   ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,matriks:vMatriks,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
 }
