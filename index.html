@@ -137,8 +137,59 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .fileic{width:38px;height:38px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 auto}
 @media (max-width:640px){.jl-acara{display:none!important}}
 </style>
+
+/* ===== Matriks Peserta × Acara (Cek List) ===== */
+.mx-wrap{background:#fff;color:#0b1533;border-radius:16px;padding:18px;box-shadow:var(--sh);border:1px solid var(--line)}
+.mx-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:3px solid #0b1533;padding-bottom:12px;margin-bottom:14px;flex-wrap:wrap}
+.mx-title h2{font-size:20px;letter-spacing:.3px;color:#0b1533;margin:0}
+.mx-title .mx-sub{font-size:12px;color:#5b6b8f;font-weight:600;letter-spacing:.6px;text-transform:uppercase;margin-top:4px}
+.mx-brand{display:flex;align-items:center;gap:10px}
+.mx-logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6d28f9,#00c6ff 55%,#ff2d95);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px;letter-spacing:.5px}
+.mx-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.mx-tools input,.mx-tools select{background:#fff;color:#0b1533;border:1px solid #d9dfef;font-size:13px;padding:9px 12px;border-radius:10px}
+.mx-btn{background:#0b1533;color:#fff;border:0;padding:9px 14px;border-radius:10px;font-weight:700;font-size:12.5px;cursor:pointer;letter-spacing:.3px}
+.mx-btn.alt{background:#fff;color:#0b1533;border:1px solid #0b1533}
+.mx-scroll{overflow:auto;border:1px solid #e1e6f2;border-radius:12px}
+table.mx{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;color:#0b1533;min-width:640px}
+table.mx thead th{position:sticky;top:0;background:#0b1533;color:#fff;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;padding:12px 10px;border-right:1px solid rgba(255,255,255,.1);z-index:2}
+table.mx thead th.rot{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;min-width:36px;height:150px;padding:10px 6px;font-size:11.5px}
+table.mx thead th.nm{text-align:left;min-width:220px}
+table.mx thead th.sk{text-align:left;min-width:150px}
+table.mx thead th.kt{text-align:center;min-width:80px}
+table.mx tbody td{padding:10px 10px;border-bottom:1px solid #eef1f8;border-right:1px solid #eef1f8;background:#fff}
+table.mx tbody tr:nth-child(even) td{background:#f7f9fd}
+table.mx tbody tr:hover td{background:#eef4ff}
+table.mx td.nm{text-align:left;font-weight:600}
+table.mx td.nm .no{color:#8390b3;font-weight:600;margin-right:8px}
+table.mx td.sk,table.mx td.kt{text-align:left;color:#4a5878;font-weight:500}
+table.mx td.kt{text-align:center}
+table.mx td.cx{text-align:center;font-weight:800}
+table.mx td.cx.on{color:#0a8f4b;background:#e6f6ee !important;font-size:15px}
+table.mx td.cx.off{color:#c8ced9}
+table.mx td.tot{text-align:center;font-weight:800;background:#fbfcff !important;color:#0b1533}
+table.mx tfoot td{background:#0b1533 !important;color:#fff;font-weight:800;padding:10px;text-align:center;font-size:11.5px;letter-spacing:.4px;border:0}
+table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
+.mx-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;color:#4a5878;font-size:12px}
+.mx-legend .lg{display:flex;align-items:center;gap:6px}
+.mx-legend .sw{display:inline-block;width:14px;height:14px;border-radius:4px;background:#e6f6ee;border:1px solid #0a8f4b}
+.mx-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #e1e6f2;color:#5b6b8f;font-size:11.5px;letter-spacing:.3px}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  body{background:#fff !important;padding:0 !important}
+  .nav,.sync,.top,.hd,.tabs,.btn,#nav,.mx-tools,.no-print{display:none !important}
+  .wrap{max-width:none;padding:0;margin:0}
+  .mx-wrap{border:0;box-shadow:none;padding:0;border-radius:0}
+  table.mx{font-size:10.5px}
+  table.mx thead th{background:#0b1533 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.mx thead th.rot{height:130px;font-size:10.5px}
+  table.mx td.cx.on{background:#e6f6ee !important;color:#0a8f4b !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.mx tfoot td{background:#0b1533 !important;color:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .mx-scroll{overflow:visible;border:1px solid #0b1533;border-radius:0}
+}
+</style>
 </head>
 <body>
+
 <div class="wrap" id="app"><div class="sp"></div></div>
 <div class="nav hide" id="nav"></div>
 <div class="sync" id="sync"><span class="dot"></span><span id="syncTxt">Menyegerak…</span></div>
@@ -479,7 +530,7 @@ function render(){
   if(!DB) return muat();
   $("#nav").classList.remove("hide");
   navBar();
-  ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
+  ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,matriks:vMatriks,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
 }
 function navBar(){
   const t=[["home","🏠","Utama"],["kehadiran","✅","Kehadiran"],["acara","🏆","Rekod"],["dashboard","📊","Dashboard"],["saya","👤","Saya"]];
@@ -570,6 +621,7 @@ function vHome(){
     <div class="tile t1" onclick="go('kehadiran')"><div class="ic">✅</div><div class="tt">KEHADIRAN</div><div class="ts">Tanda kehadiran atlet</div></div>
     <div class="tile t2" onclick="go('acara')"><div class="ic">🏆</div><div class="tt">REKOD LATIHAN</div><div class="ts">Ikut acara & atlet</div></div>
     <div class="tile t3" onclick="go('dashboard')"><div class="ic">📊</div><div class="tt">DASHBOARD</div><div class="ts">Ranking pencapaian</div></div>
+    <div class="tile t1" onclick="go('matriks')"><div class="ic">📋</div><div class="tt">MATRIKS ACARA</div><div class="ts">Cek list peserta × acara</div></div>
   </div>
   <div class="card" style="margin-top:14px"><div class="small">Tarikh: <b>${t}</b> • Kehadiran wajib ditanda sebelum rekod latihan boleh diambil.</div>
   <button class="btn ghost sm" style="margin-top:10px" onclick="muat()">↻ Segar semula data</button></div>`;
@@ -1688,6 +1740,124 @@ async function simpanUrlTek(){
   if(!/^https:\/\/script\.google\.com\/.*\/exec$/.test(v)) return toast("URL mesti berakhir /exec");
   API=v; localStorage.setItem(LS_API,v); toast("URL dikemas kini"); ujiSambungan();
 }
+
+/* ---------- Matriks Peserta × Acara (Cek List) ---------- */
+let mxCari="", mxSekolah="", mxKategori="";
+function mxTapis(){
+  const senaraiA=acaraList();
+  const q=mxCari.trim().toLowerCase();
+  const atlet=((DB&&DB.atlet)||[]).filter(a=>{
+    if(mxSekolah && String(a.SEKOLAH||"")!==mxSekolah) return false;
+    if(mxKategori && String(a.KATEGORI||"")!==mxKategori) return false;
+    if(q){
+      const s=(a["NAMA PENUH"]+" "+a.KATEGORI+" "+a.SEKOLAH+" "+(a["NO IC"]||"")).toLowerCase();
+      if(!s.includes(q)) return false;
+    }
+    return true;
+  }).slice().sort((x,y)=>String(x["NAMA PENUH"]||"").localeCompare(String(y["NAMA PENUH"]||"")));
+  return {atlet, acara:senaraiA};
+}
+function vMatriks(){
+  const {atlet, acara}=mxTapis();
+  const sekolahOpt=[...new Set(((DB&&DB.atlet)||[]).map(a=>a.SEKOLAH).filter(Boolean))].sort();
+  const kategoriOpt=[...new Set(((DB&&DB.atlet)||[]).map(a=>a.KATEGORI).filter(Boolean))].sort();
+  const daftar={}; /* atletId -> Set(acara) */
+  acara.forEach(ev=>{
+    penyertaan(ev.ACARA).forEach(p=>{
+      const id=String(p["ATLET ID"]);
+      (daftar[id]=daftar[id]||new Set()).add(ev.ACARA);
+    });
+  });
+  const totBaris=id=>(daftar[id]?daftar[id].size:0);
+  const totLajur=nama=>atlet.filter(a=>daftar[String(a.ID)]&&daftar[String(a.ID)].has(nama)).length;
+  const totKeseluruhan=atlet.reduce((s,a)=>s+totBaris(String(a.ID)),0);
+  const tarikhCetak=new Date().toLocaleDateString("ms-MY",{day:"2-digit",month:"long",year:"numeric"});
+  const sekolahUtama=(U&&U.sekolah)||"—";
+
+  app().innerHTML=`${topbar("Matriks Peserta × Acara","home")}
+  <div class="mx-tools no-print">
+    <input placeholder="🔍 Cari nama / IC / kategori" value="${esc(mxCari)}" oninput="mxCari=this.value;vMatriks()" style="min-width:220px;flex:1"/>
+    <select onchange="mxSekolah=this.value;vMatriks()">
+      <option value="">Semua Sekolah</option>
+      ${sekolahOpt.map(s=>`<option value="${esc(s)}" ${s===mxSekolah?"selected":""}>${esc(s)}</option>`).join("")}
+    </select>
+    <select onchange="mxKategori=this.value;vMatriks()">
+      <option value="">Semua Kategori</option>
+      ${kategoriOpt.map(k=>`<option value="${esc(k)}" ${k===mxKategori?"selected":""}>${esc(k)}</option>`).join("")}
+    </select>
+    <button class="mx-btn" onclick="window.print()">🖨 Cetak / Simpan PDF</button>
+    <button class="mx-btn alt" onclick="mxCari='';mxSekolah='';mxKategori='';vMatriks()">Reset</button>
+  </div>
+
+  <div class="mx-wrap">
+    <div class="mx-head">
+      <div class="mx-brand">
+        <div class="mx-logo">AT</div>
+        <div class="mx-title">
+          <h2>Matriks Penyertaan Peserta × Acara</h2>
+          <div class="mx-sub">AtletTrack • Laporan Rasmi Pusat Latihan</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:#5b6b8f;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Tarikh Cetak</div>
+        <div style="font-size:14px;color:#0b1533;font-weight:800">${esc(tarikhCetak)}</div>
+        <div style="font-size:11.5px;color:#5b6b8f;margin-top:2px">${esc(sekolahUtama)}</div>
+      </div>
+    </div>
+
+    ${acara.length===0?`<div style="padding:24px;text-align:center;color:#5b6b8f">Tiada acara aktif direkodkan.</div>`:
+    atlet.length===0?`<div style="padding:24px;text-align:center;color:#5b6b8f">Tiada peserta padan dengan tapisan.</div>`:`
+    <div class="mx-scroll">
+      <table class="mx">
+        <thead>
+          <tr>
+            <th class="nm" rowspan="2">Nama Peserta</th>
+            <th class="sk" rowspan="2">Sekolah</th>
+            <th class="kt" rowspan="2">Kategori</th>
+            <th colspan="${acara.length}" style="text-align:center">Acara</th>
+            <th class="kt" rowspan="2">Jumlah</th>
+          </tr>
+          <tr>
+            ${acara.map(ev=>`<th class="rot" title="${esc(ev.ACARA)}">${esc(ev.ACARA)}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${atlet.map((a,i)=>{
+            const id=String(a.ID);
+            const set=daftar[id]||new Set();
+            return `<tr>
+              <td class="nm"><span class="no">${String(i+1).padStart(2,"0")}</span>${esc(a["NAMA PENUH"]||"")}</td>
+              <td class="sk">${esc(a.SEKOLAH||"—")}</td>
+              <td class="kt">${esc(a.KATEGORI||"—")}</td>
+              ${acara.map(ev=>{
+                const on=set.has(ev.ACARA);
+                return `<td class="cx ${on?"on":"off"}">${on?"✕":"·"}</td>`;
+              }).join("")}
+              <td class="tot">${set.size}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="lbl" colspan="3">Jumlah Peserta / Acara</td>
+            ${acara.map(ev=>`<td>${totLajur(ev.ACARA)}</td>`).join("")}
+            <td>${totKeseluruhan}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="mx-legend">
+      <div class="lg"><span class="sw"></span> ✕ = Peserta berdaftar dalam acara</div>
+      <div class="lg">· = Tidak menyertai</div>
+      <div class="lg"><b>${atlet.length}</b> peserta • <b>${acara.length}</b> acara</div>
+    </div>
+    <div class="mx-foot">
+      <div>Dokumen dijana oleh sistem AtletTrack</div>
+      <div>Disahkan oleh: ${esc((U&&U.nama)||"—")} • ${esc((U&&U.jawatan)||"")}</div>
+    </div>`}
+  </div>`;
+}
+
 function vDiagnostik(){
   if(!TEKNISION){ toast("Akses teknision diperlukan"); return go("saya"); }
   const kira=k=>((DB&&DB[k])||[]).length;
