@@ -161,6 +161,8 @@ table.mx thead th.kt{text-align:center;min-width:80px}
 table.mx tbody td{padding:10px 10px;border-bottom:1px solid #eef1f8;border-right:1px solid #eef1f8;background:#fff}
 table.mx tbody tr:nth-child(even) td{background:#f7f9fd}
 table.mx tbody tr:hover td{background:#eef4ff}
+table.mx tbody tr.group-start td{border-top:2px solid #0b1533}
+table.mx tbody tr.group-start td.nm{font-weight:800}
 table.mx td.nm{text-align:left;font-weight:600}
 table.mx td.nm .no{color:#8390b3;font-weight:600;margin-right:8px}
 table.mx td.sk,table.mx td.kt{text-align:left;color:#4a5878;font-weight:500}
@@ -187,6 +189,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
   table.mx td.cx.on{background:#e6f6ee !important;color:#0a8f4b !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   table.mx tfoot td{background:#0b1533 !important;color:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .mx-scroll{overflow:visible;border:1px solid #0b1533;border-radius:0}
+  table.mx tbody tr.group-start td{border-top:2px solid #0b1533;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
 </head>
@@ -201,7 +204,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxpr8m4MH2q2wjC21lhAPafX2k3IIBtuCdFLCpNXxgT2e8a9P7ctBgjZv4qx3OLJpAFag/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzPOhWVc07oWAFbd56Qt8RiJwiOKWbHbzufPU6UPUbysw02ufrtpqevHEvU_zpqUE2m2w/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1745,7 +1748,20 @@ async function simpanUrlTek(){
 }
 
 /* ---------- Matriks Peserta × Acara (Cek List) ---------- */
-let mxCari="", mxSekolah="", mxKategori="";
+let mxCari="", mxSekolah="", mxKategori="", mxSortAtlet="kat-nama";
+function sortAtlet(arr){
+  const byNama=(x,y)=>String(x["NAMA PENUH"]||"").localeCompare(String(y["NAMA PENUH"]||""));
+  const byKat=(x,y)=>String(x.KATEGORI||"").localeCompare(String(y.KATEGORI||""));
+  const bySek=(x,y)=>String(x.SEKOLAH||"").localeCompare(String(y.SEKOLAH||""));
+  const a=arr.slice();
+  switch(mxSortAtlet){
+    case "nama": return a.sort(byNama);
+    case "sekolah-nama": return a.sort((x,y)=>bySek(x,y)||byNama(x,y));
+    case "sekolah-kat": return a.sort((x,y)=>bySek(x,y)||byKat(x,y)||byNama(x,y));
+    case "kat-sekolah": return a.sort((x,y)=>byKat(x,y)||bySek(x,y)||byNama(x,y));
+    case "kat-nama": default: return a.sort((x,y)=>byKat(x,y)||byNama(x,y));
+  }
+}
 function mxTapis(){
   const senaraiA=acaraList();
   const q=mxCari.trim().toLowerCase();
@@ -1757,8 +1773,9 @@ function mxTapis(){
       if(!s.includes(q)) return false;
     }
     return true;
-  }).slice().sort((x,y)=>String(x["NAMA PENUH"]||"").localeCompare(String(y["NAMA PENUH"]||"")));
-  return {atlet, acara:senaraiA};
+  });
+  const atletSorted=sortAtlet(atlet);
+  return {atlet:atletSorted, acara:senaraiA};
 }
 function vMatriks(){
   const {atlet, acara}=mxTapis();
@@ -1788,8 +1805,15 @@ function vMatriks(){
       <option value="">Semua Kategori</option>
       ${kategoriOpt.map(k=>`<option value="${esc(k)}" ${k===mxKategori?"selected":""}>${esc(k)}</option>`).join("")}
     </select>
+    <select onchange="mxSortAtlet=this.value;vMatriks()">
+      <option value="kat-nama" ${mxSortAtlet==="kat-nama"?"selected":""}>Susun: Kategori → Nama</option>
+      <option value="nama" ${mxSortAtlet==="nama"?"selected":""}>Susun: Nama</option>
+      <option value="sekolah-nama" ${mxSortAtlet==="sekolah-nama"?"selected":""}>Susun: Sekolah → Nama</option>
+      <option value="sekolah-kat" ${mxSortAtlet==="sekolah-kat"?"selected":""}>Susun: Sekolah → Kategori</option>
+      <option value="kat-sekolah" ${mxSortAtlet==="kat-sekolah"?"selected":""}>Susun: Kategori → Sekolah</option>
+    </select>
     <button class="mx-btn" onclick="window.print()">🖨 Cetak / Simpan PDF</button>
-    <button class="mx-btn alt" onclick="mxCari='';mxSekolah='';mxKategori='';vMatriks()">Reset</button>
+    <button class="mx-btn alt" onclick="mxCari='';mxSekolah='';mxKategori='';mxSortAtlet='kat-nama';vMatriks()">Reset</button>
   </div>
 
   <div class="mx-wrap">
@@ -1825,20 +1849,22 @@ function vMatriks(){
           </tr>
         </thead>
         <tbody>
-          ${atlet.map((a,i)=>{
+          ${(()=>{let prevKat="", isKat=["kat-nama","kat-sekolah"].includes(mxSortAtlet); return atlet.map((a,i)=>{
             const id=String(a.ID);
             const set=daftar[id]||new Set();
-            return `<tr>
+            const kat=String(a.KATEGORI||"—");
+            const groupStart=isKat && kat!==prevKat ? (prevKat=kat, "group-start") : "";
+            return `<tr class="${groupStart}">
               <td class="nm"><span class="no">${String(i+1).padStart(2,"0")}</span>${esc(a["NAMA PENUH"]||"")}</td>
               <td class="sk">${esc(a.SEKOLAH||"—")}</td>
-              <td class="kt">${esc(a.KATEGORI||"—")}</td>
+              <td class="kt">${esc(kat)}</td>
               ${acara.map(ev=>{
                 const on=set.has(ev.ACARA);
                 return `<td class="cx ${on?"on":"off"}">${on?"✕":"·"}</td>`;
               }).join("")}
               <td class="tot">${set.size}</td>
             </tr>`;
-          }).join("")}
+          }).join("")})()}
         </tbody>
         <tfoot>
           <tr>
