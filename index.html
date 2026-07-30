@@ -318,10 +318,13 @@ function apiPost(action,payload){
     })
     .catch(e=>{ if(e && e.kod) throw e; throw RalatDB("DB-003",String(e&&e.message||e),"",action); });
 }
+const AKSI_BACA={data:1,ping:1,login:1,daftar:1};
 function api(action,payload){
   // Data besar (base64) → POST supaya lebih laju & tanpa had URL
   const besar = payload && (payload.gambarBase64 || payload.dataBase64);
-  return besar ? apiPost(action,payload) : apiJsonp(action,payload);
+  const p = besar ? apiPost(action,payload) : apiJsonp(action,payload);
+  // Setiap penulisan → segerak senyap supaya paparan sentiasa terkini tanpa refresh
+  return p.then(r=>{ if(!AKSI_BACA[action]) jadualSegerak(2500); return r; });
 }
 
 function laporanTeks(e){
@@ -398,11 +401,32 @@ const acaraList=()=>((DB&&DB.acara)||[]).filter(a=>String(a.AKTIF||"YA").toUpper
 const acaraInfo=n=>acaraList().find(a=>a.ACARA===n)||{JENIS:"MASA",UNIT:"saat"};
 const atletById=id=>((DB&&DB.atlet)||[]).find(a=>String(a.ID)===String(id));
 const jurulatihAcara=n=>((DB&&DB.jurulatih)||[]).filter(j=>j.ACARA===n);
-const bolehRekod=n=>isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JURULATIH"]).toLowerCase()===String(U.emel).toLowerCase());
+const bolehRekod=n=>!!U&&(isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JURULATIH"]).toLowerCase()===String((U&&U.emel)||"").toLowerCase()));
 const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
 const rekodAcara=n=>((DB&&DB.rekod&&DB.rekod[n])||[]);
 const kejohananAcara=n=>((DB&&DB.kejohanan)||[]).filter(k=>String(k.ACARA)===String(n));
-const kejohananKat=(n,kat)=>kejohananAcara(n).find(k=>String(k.KATEGORI||"").toUpperCase()===String(kat||"").toUpperCase())||null;
+/* Rekod kejohanan ringkas: hanya dua peringkat — MSSD & MSSK */
+const PERINGKAT_KEJOHANAN=["MSSD","MSSK"];
+const namaPeringkat=k=>{ const t=String((k&&k["NAMA KEJOHANAN"])||"").toUpperCase(); return t.indexOf("MSSK")>=0?"MSSK":"MSSD"; };
+const kejohananKatSemua=(n,kat)=>kejohananAcara(n)
+  .filter(k=>String(k.KATEGORI||"").toUpperCase()===String(kat||"").toUpperCase())
+  .sort((a,b)=>PERINGKAT_KEJOHANAN.indexOf(namaPeringkat(a))-PERINGKAT_KEJOHANAN.indexOf(namaPeringkat(b)));
+const kejohananPeringkat=(n,kat,p)=>kejohananKatSemua(n,kat).find(k=>namaPeringkat(k)===p)||null;
+/* Sasaran = rekod terbaik antara MSSD / MSSK */
+function kejohananKat(n,kat){
+  const l=kejohananKatSemua(n,kat).filter(k=>Number(k.NILAI)>0);
+  if(!l.length) return null;
+  const masa=acaraInfo(n).JENIS==="MASA";
+  return l.slice().sort((a,b)=>masa?Number(a.NILAI)-Number(b.NILAI):Number(b.NILAI)-Number(a.NILAI))[0];
+}
+/* Format ringkas: 13.30s / 2023  •  5.20m / 2024 */
+function nilaiRingkas(rk,info){
+  const x=Number(rk&&rk.NILAI);
+  if(!isFinite(x)||!(x>0)) return String((rk&&rk.KEPUTUSAN)||"-");
+  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?"s":"m");
+  return x.toFixed(2)+"m";
+}
+const teksKejohanan=(rk,info)=>`${namaPeringkat(rk)} : ${nilaiRingkas(rk,info)}${rk.TAHUN?" / "+rk.TAHUN:""}`;
 const hadirHariIni=(id,tarikh)=>((DB&&DB.kehadiran)||[]).some(k=>String(k.TARIKH).slice(0,10)===tarikh&&String(k["ATLET ID"])===String(id)&&String(k.STATUS).toUpperCase()==="HADIR");
 const failAtletList=id=>((DB&&DB.failAtlet)||[]).filter(f=>String(f["ATLET ID"])===String(id));
 /* Acara berpasukan (relay) — satu rekod dikongsi oleh beberapa atlet */
@@ -510,12 +534,42 @@ function tambahRekodLokal(acara,rekod){
   DB.rekod[acara].push(rekod);
 }
 
-/* ---------- Muat data ---------- */
+/* ---------- Muat data (cache tempatan + segerak senyap) ---------- */
+const LS_DB="at_db_cache_v2";
+function simpanCacheDB(d){ try{ localStorage.setItem(LS_DB,JSON.stringify({t:Date.now(),d})); }catch(e){} }
+function bacaCacheDB(){ try{ const o=JSON.parse(localStorage.getItem(LS_DB)||"null"); return (o&&o.d)?o:null; }catch(e){ return null; } }
+
 async function muat(){
+  /* Paparan serta-merta daripada cache peranti, kemudian segerak di belakang tabir */
+  if(!DB){ const c=bacaCacheDB(); if(c){ DB=c.d; render(); segerakSenyap(); return; } }
   loading();
-  try{ DB=await api("data"); render(); }
+  try{ DB=await api("data"); simpanCacheDB(DB); render(); }
   catch(e){ app().innerHTML=kadRalat(e,"muat()"); }
 }
+
+let SEGERAK=false, T_SEGERAK=null;
+function lencanaSegerak(on){
+  let b=$("#syncb");
+  if(on){
+    if(!b){ b=document.createElement("div"); b.id="syncb";
+      b.style.cssText="position:fixed;right:10px;bottom:74px;z-index:60;background:rgba(15,23,42,.92);color:#cfe3ff;border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:5px 11px;font-size:11px";
+      b.textContent="⟳ Menyegerak…"; document.body.appendChild(b); }
+  } else if(b) b.remove();
+}
+async function segerakSenyap(){
+  if(SEGERAK||!API) return;
+  SEGERAK=true; lencanaSegerak(true);
+  try{
+    const d=await apiJsonp("data",{paksa:1},45000);
+    DB=d; simpanCacheDB(d);
+    if(!$("#ov")) render();           /* jangan ganggu bila borang sedang dibuka */
+  }catch(e){ /* senyap sahaja */ }
+  finally{ SEGERAK=false; lencanaSegerak(false); }
+}
+function jadualSegerak(ms){ clearTimeout(T_SEGERAK); T_SEGERAK=setTimeout(segerakSenyap,ms||2500); }
+/* Segerak berkala & bila app kembali aktif */
+setInterval(()=>{ if(document.visibilityState==="visible" && DB && !$("#ov")) segerakSenyap(); },45000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && DB) jadualSegerak(800); });
 function tetapApi(){ if(!TEKNISION) return modTeknision(); localStorage.removeItem(LS_API); API=API_URL_LALAI; render(); }
 function modTeknision(){
   if(TEKNISION) return go("diagnostik");
@@ -525,7 +579,7 @@ function modTeknision(){
   TEKNISION=true; localStorage.setItem(LS_TEK,"1"); toast("Mod Teknision aktif"); go("diagnostik");
 }
 function keluarTeknision(){ TEKNISION=false; localStorage.removeItem(LS_TEK); toast("Mod Teknision ditutup"); go("saya"); }
-function logout(){ localStorage.removeItem(LS_USER); U=null; DB=null; VIEW="home"; render(); }
+function logout(){ localStorage.removeItem(LS_USER); U=null; VIEW="dashboard"; render(); }
 
 /* ---------- Navigasi + Sejarah Browser ----------
    Pastikan butang "back" browser/telefon menutup overlay atau kembali ke
@@ -545,15 +599,27 @@ function goBack(){
 window.addEventListener("popstate",()=>{ goBack(); try{ history.pushState({view:VIEW},"", "#"+VIEW); }catch(e){} });
 
 /* ============================ SKRIN ============================ */
+const PAPARAN_AWAM={dashboard:1,profil:1,matriks:1,acara:1,acaraDetail:1};
 function render(){
   $("#nav").classList.add("hide");
   if(!API) return skrinApi();
-  if(!U) return skrinAuth();
-  if(!DB) return muat();
+  if(!DB) return muat();                      /* dashboard awam — tiada login diperlukan */
+  if(!U){
+    if(VIEW==="login") return skrinAuth();
+    if(!PAPARAN_AWAM[VIEW]) VIEW="dashboard";
+    $("#nav").classList.remove("hide");
+    $("#app").classList.toggle("full",VIEW==="matriks");
+    navBarAwam();
+    return ({dashboard:vDashboard,matriks:vMatriks,profil:vProfil,acara:vAcara,acaraDetail:vAcaraDetail}[VIEW]||vDashboard)();
+  }
   $("#nav").classList.remove("hide");
   $("#app").classList.toggle("full",VIEW==="matriks");
   navBar();
   ({home:vHome,kehadiran:vKehadiran,acara:vAcara,acaraDetail:vAcaraDetail,dashboard:vDashboard,matriks:vMatriks,profil:vProfil,sejarah:vSejarah,diagnostik:vDiagnostik,admin:vAdmin,saya:vSaya}[VIEW]||vHome)();
+}
+function navBarAwam(){
+  const t=[["dashboard","📊","Dashboard"],["acara","🏆","Rekod"],["matriks","📋","Matriks"],["login","🔐","Log Masuk"]];
+  $("#nav").innerHTML=t.map(([k,i,l])=>`<button class="${VIEW===k?"on":""}" onclick="go('${k}')"><span class="ni">${i}</span>${l}</button>`).join("");
 }
 function navBar(){
   const t=[["home","🏠","Utama"],["kehadiran","✅","Kehadiran"],["acara","🏆","Rekod"],["matriks","📋","Matriks"],["saya","👤","Saya"]];
@@ -611,21 +677,22 @@ function skrinAuth(){
       <button class="btn" onclick="doDaftar()">Daftar Akaun</button>
     `}
   </div>
-  <div class="card"><p class="small">Semua rekod disimpan <b>hanya</b> di dalam pangkalan data rasmi (Google Sheet).</p>
+  <div class="card"><p class="small">Log masuk hanya diperlukan untuk <b>kemas kini data</b>. Orang awam boleh terus melihat dashboard.</p>
+  <button class="btn ghost sm" onclick="go('dashboard')">📊 Lihat Dashboard</button>
   <button class="btn ghost sm" onclick="modTeknision()">🔧 Mod Teknision</button></div>`;
 }
 async function doLogin(){
   const emel=$("#e").value.trim(), kataLaluan=$("#p").value;
   if(!emel||!kataLaluan) return toast("Sila isi emel dan kata laluan");
   loading("Mengesahkan...");
-  try{ U=await api("login",{emel,kataLaluan}); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Selamat datang, "+U.nama); muat(); }
+  try{ U=await api("login",{emel,kataLaluan}); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Selamat datang, "+U.nama); VIEW="home"; render(); jadualSegerak(500); }
   catch(e){ toastRalat(e); render(); }
 }
 async function doDaftar(){
   const p={nama:$("#n").value.trim(),emel:$("#e").value.trim(),kataLaluan:$("#p").value,jawatan:$("#j").value.trim(),sekolah:$("#s").value.trim(),telefon:$("#t").value.trim()};
   if(Object.values(p).some(v=>!v)) return toast("Sila lengkapkan semua maklumat");
   loading("Mendaftar...");
-  try{ U=await api("daftar",p); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Pendaftaran berjaya"); muat(); }
+  try{ U=await api("daftar",p); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Pendaftaran berjaya"); VIEW="home"; render(); jadualSegerak(500); }
   catch(e){ toastRalat(e); render(); }
 }
 
@@ -935,41 +1002,36 @@ function kadKejohanan(n,info,boleh,kats){
 }
 /* Header kategori dengan rekod kejohanan inline */
 function headerKategoriRekod(n,info,k,bil,boleh){
-  const rk=kejohananKat(n,k);
-  const rekodHtml=rk
-    ? `<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">
-         <span>🏆 <b>${esc(rk.KEPUTUSAN||fmtNilai(Number(rk.NILAI),info))}</b></span>
-         <span style="opacity:.85">${esc(rk["NAMA KEJOHANAN"]||"Rekod Kejohanan")}${rk.TAHUN?" • "+esc(rk.TAHUN):""}${rk["PEMEGANG REKOD"]?" • "+esc(rk["PEMEGANG REKOD"]):""}</span>
-         ${boleh?`<span style="margin-left:auto;display:inline-flex;gap:4px">
-           <button class="btn sm ghost" onclick="formKejohanan('${esc(n)}','${esc(k)}','${esc(rk.ID)}')">✎</button>
-           <button class="btn sm ghost" style="color:var(--bad)" onclick="padamKejohanan('${esc(n)}','${esc(rk.ID)}')">✕</button>
-         </span>`:""}
-       </div>`
-    : (boleh
-        ? `<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-             <span style="opacity:.8">🏆 Belum ada rekod kejohanan bagi kategori ini.</span>
-             <button class="btn sm ghost" onclick="formKejohanan('${esc(n)}','${esc(k)}')">+ Tetapkan</button>
-           </div>`
-        : `<div class="small" style="margin-top:6px;opacity:.8">🏆 Belum ada rekod kejohanan bagi kategori ini.</div>`);
+  const baris=PERINGKAT_KEJOHANAN.map(p=>{
+    const rk=kejohananPeringkat(n,k,p);
+    if(rk) return `<span style="display:inline-flex;align-items:center;gap:4px">
+        <b>${esc(teksKejohanan(rk,info))}</b>
+        ${boleh?`<a href="javascript:void(0)" style="opacity:.7;text-decoration:none" onclick="formKejohanan('${esc(n)}','${esc(k)}','${esc(rk.ID)}')">✎</a>
+        <a href="javascript:void(0)" style="opacity:.7;text-decoration:none;color:var(--bad)" onclick="padamKejohanan('${esc(n)}','${esc(rk.ID)}')">✕</a>`:""}
+      </span>`;
+    return boleh
+      ? `<a href="javascript:void(0)" style="opacity:.75;text-decoration:none" onclick="formKejohanan('${esc(n)}','${esc(k)}','','${p}')">${p} : + tetapkan</a>`
+      : `<span style="opacity:.6">${p} : -</span>`;
+  }).join("");
   return `<div class="card" style="padding:10px 14px;margin-bottom:8px">
     <div><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span></div>
-    ${rekodHtml}
+    <div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">🏆 ${baris}</div>
   </div>`;
 }
-function formKejohanan(n,kat,id){
+function formKejohanan(n,kat,id,peringkat){
   const info=acaraInfo(n);
-  const sedia=id?kejohananAcara(n).find(k=>String(k.ID)===String(id)):(kat?kejohananKat(n,kat):null);
+  const sedia=id?kejohananAcara(n).find(k=>String(k.ID)===String(id)):null;
+  const pkt=sedia?namaPeringkat(sedia):(peringkat||"MSSD");
   const katSedia=[...new Set(penyertaan(n).map(p=>String(p.KATEGORI||"").toUpperCase()).filter(Boolean))].sort();
   overlay(`<div class="big">${sedia?"Kemas Kini":"Tambah"} Rekod Kejohanan</div>
   <div class="small">${esc(n)} • ${info.JENIS==="MASA"?"Masa (saat / minit)":"Jarak (meter)"}</div>
   <label>Kategori</label><input id="kk" list="kkList" placeholder="Cth: BPL12" value="${esc(sedia?sedia.KATEGORI:(kat||""))}"/>
   <datalist id="kkList">${katSedia.map(k=>`<option value="${esc(k)}"></option>`).join("")}</datalist>
-  <label>Nama Kejohanan</label><input id="kn" placeholder="Cth: MSSD 2025" value="${esc(sedia?sedia["NAMA KEJOHANAN"]:"")}"/>
-  <label>Tahun</label><input id="kt" inputmode="numeric" placeholder="Cth: 2025" value="${esc(sedia?sedia.TAHUN:"")}"/>
-  <label>Pemegang Rekod</label><input id="kp" placeholder="Nama atlet / sekolah" value="${esc(sedia?sedia["PEMEGANG REKOD"]:"")}"/>
-  <label>Nilai Rekod (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
-  <input id="kv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 12.45 atau 1:15.45":"Cth: 5.20"}" value="${esc(sedia&&sedia.NILAI?String(sedia.NILAI):"")}"/>
-  <label>Catatan</label><textarea id="kc" rows="2" placeholder="Cth: rekod peringkat daerah">${esc(sedia?sedia.CATATAN:"")}</textarea>
+  <label>Peringkat</label>
+  <select id="kn">${PERINGKAT_KEJOHANAN.map(p=>`<option value="${p}" ${p===pkt?"selected":""}>${p}</option>`).join("")}</select>
+  <label>Rekod (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <input id="kv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 13.30 atau 1:15.45":"Cth: 5.20"}" value="${esc(sedia&&sedia.NILAI?String(sedia.NILAI):"")}"/>
+  <label>Tahun</label><input id="kt" inputmode="numeric" placeholder="Cth: 2023" value="${esc(sedia?sedia.TAHUN:"")}"/>
   <button class="btn" id="btnK" onclick="simpanKejohanan('${esc(n)}','${esc(sedia?sedia.ID:"")}')">Simpan</button>
   <button class="btn ghost" onclick="tutup()">Batal</button>`);
 }
@@ -981,11 +1043,12 @@ async function simpanKejohanan(n,id){
   if(!kategori) return toast("Kategori diperlukan");
   if(!(nilai>0)) return toast("Masukkan nilai rekod yang sah");
   if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
-  const p={acara:n,id:id||"",kategori,namaKejohanan:$("#kn").value.trim(),tahun:$("#kt").value.trim(),
-    pemegang:$("#kp").value.trim(),nilai,keputusan:fmtNilai(nilai,info),catatan:$("#kc").value.trim(),...who()};
+  const peringkat=$("#kn").value.trim().toUpperCase()||"MSSD";
+  const p={acara:n,id:id||"",kategori,namaKejohanan:peringkat,tahun:$("#kt").value.trim(),
+    pemegang:"",nilai,keputusan:fmtNilai(nilai,info),catatan:"",...who()};
   try{
     const r=await api("rekodKejohanan",p);
-    DB.kejohanan=(DB.kejohanan||[]).filter(k=>!(String(k.ACARA)===n && String(k.KATEGORI).toUpperCase()===kategori));
+    DB.kejohanan=(DB.kejohanan||[]).filter(k=>!(String(k.ACARA)===n && String(k.KATEGORI).toUpperCase()===kategori && namaPeringkat(k)===peringkat) && String(k.ID)!==String(id||""));
     if(r&&r.rekod) DB.kejohanan.push(r.rekod);
     tutup(); render(); toast("Rekod kejohanan disimpan");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
@@ -1386,15 +1449,26 @@ function formGambarAtlet(id){
   const a=atletById(id); if(!a) return;
   overlay(`<div class="big">Kemas Gambar Atlet</div>
     <div class="small">${esc(a["NAMA PENUH"])}</div>
-    <div class="cropbox" id="cropbox"><canvas id="cropcv" width="600" height="600"></canvas><div class="mask"></div></div>
-    <div class="row" style="gap:8px">
+    <div class="cropbox" id="cropbox" style="position:relative">
+      <canvas id="cropcv" width="600" height="600"></canvas>
+      <video id="cropvid" playsinline muted class="hide" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit"></video>
+      <div class="mask"></div>
+    </div>
+    <div class="row" style="gap:8px" id="camBar" hidden>
+      <button class="btn sm" onclick="camSnap()">📸 Snap</button>
+      <button class="btn sm ghost" onclick="camTukar()">🔄 Tukar Kamera</button>
+      <button class="btn sm ghost" onclick="camTutup()">✖ Batal Kamera</button>
+    </div>
+    <div class="row" style="gap:8px" id="cropBar">
       <button class="btn sm ghost" onclick="cropZoom(1.15)">🔍+</button>
       <button class="btn sm ghost" onclick="cropZoom(0.87)">🔍−</button>
       <button class="btn sm ghost" onclick="cropReset()">↺ Reset</button>
+      <button class="btn sm" onclick="cropKamera()">📷 Buka Kamera</button>
       <button class="btn sm ghost" onclick="$('#pkrGambar').click()">📁 Pilih Gambar</button>
     </div>
     <input type="file" id="pkrGambar" accept="image/*" class="hide" onchange="cropLoad(event)"/>
-    <p class="small">Seret untuk gerak, guna butang zoom untuk perbesarkan bahagian muka. Gambar akan dipotong bulat 600×600.</p>
+    <input type="file" id="pkrKamera" accept="image/*" capture="environment" class="hide" onchange="cropLoad(event)"/>
+    <p class="small">Tekan <b>📷 Buka Kamera</b> untuk snap terus, atau pilih gambar dari folder. Selepas itu seret untuk gerak & guna zoom sebelum simpan. Gambar dipotong bulat 600×600.</p>
     <button class="btn" id="btnGmb" onclick="simpanGambar('${esc(id)}')">Simpan Gambar</button>
     <button class="btn ghost" onclick="tutup()">Batal</button>`);
   setTimeout(cropInit,50);
@@ -1423,6 +1497,37 @@ function cropInit(){
   box.addEventListener("pointercancel",()=>drag=false);
   box.addEventListener("wheel",e=>{ e.preventDefault(); cropZoom(e.deltaY<0?1.1:0.9); },{passive:false});
   cropDraw();
+}
+/* ---------- Kamera telefon (langsung) ---------- */
+let CAM=null, CAM_FACE="environment";
+function camSokong(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+async function cropKamera(face){
+  if(face) CAM_FACE=face;
+  if(!camSokong()) return $("#pkrKamera").click();   /* fallback: kamera asli telefon */
+  camTutup();
+  try{
+    CAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:CAM_FACE},width:{ideal:1440},height:{ideal:1440}},audio:false});
+    const v=$("#cropvid"); if(!v){ camTutup(); return; }
+    v.srcObject=CAM; v.classList.remove("hide"); await v.play();
+    const cb=$("#camBar"), rb=$("#cropBar"); if(cb) cb.hidden=false; if(rb) rb.hidden=true;
+  }catch(e){ CAM=null; toast("Kamera tidak dapat dibuka — guna kamera telefon"); $("#pkrKamera").click(); }
+}
+function camTutup(){
+  if(CAM){ try{ CAM.getTracks().forEach(t=>t.stop()); }catch(e){} CAM=null; }
+  const v=$("#cropvid"); if(v){ v.classList.add("hide"); try{ v.srcObject=null; }catch(e){} }
+  const cb=$("#camBar"), rb=$("#cropBar"); if(cb) cb.hidden=true; if(rb) rb.hidden=false;
+}
+function camTukar(){ cropKamera(CAM_FACE==="environment"?"user":"environment"); }
+function camSnap(){
+  const v=$("#cropvid");
+  if(!v||!v.videoWidth) return toast("Kamera belum sedia, cuba sekejap lagi");
+  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+  const data=c.toDataURL("image/jpeg",0.92);
+  camTutup();
+  const im=new Image();
+  im.onload=()=>{ CROP=CROP||{img:null,scale:1,tx:0,ty:0}; CROP.img=im; cropReset(); toast("Gambar diambil — laraskan zoom & kedudukan"); };
+  im.src=data;
 }
 function cropReset(){
   if(!CROP||!CROP.img){ cropDraw(); return; }
@@ -1494,13 +1599,9 @@ function vDashboard(){
 
   const senarai=Object.keys(groups).sort().map(k=>{
     const rows=groups[k];
-    const rk=kejohananKat(dAcara,k);
-    const rkHtml=rk
-      ? `<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">
-           <span>🏆 <b>${esc(rk.KEPUTUSAN||fmtNilai(Number(rk.NILAI),info))}</b></span>
-           <span style="opacity:.85">${esc(rk["NAMA KEJOHANAN"]||"Rekod Kejohanan")}${rk.TAHUN?" • "+esc(rk.TAHUN):""}${rk["PEMEGANG REKOD"]?" • "+esc(rk["PEMEGANG REKOD"]):""}</span>
-         </div>`
-      : `<div class="small" style="margin-top:6px;opacity:.7">🏆 Belum ada rekod kejohanan bagi kategori ini.</div>`;
+    const rkHtml=`<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">🏆 ${
+      PERINGKAT_KEJOHANAN.map(pk=>{ const rk=kejohananPeringkat(dAcara,k,pk);
+        return rk?`<b>${esc(teksKejohanan(rk,info))}</b>`:`<span style="opacity:.6">${pk} : -</span>`; }).join("")}</div>`;
     return `<div class="card" style="padding:10px 14px;margin-bottom:8px"><div><b>Kategori: ${esc(k)}</b> <span class="small">• ${rows.length} atlet</span></div>${rkHtml}</div>`
       + rows.map((r,i)=>{
         const a=atletById(r.id)||{JANTINA:""};
@@ -1581,9 +1682,7 @@ function selTop3(r,unit,jenis){
 /* Rekod kejohanan (per kategori) — untuk laporan */
 function selRK(rk,info){
   if(!rk) return `<span style="color:#98a2b3">—</span>`;
-  const nilai=rk.KEPUTUSAN||(rk.NILAI?fmtNilai(Number(rk.NILAI),info):"-");
-  const meta=[rk["NAMA KEJOHANAN"]||"",rk.TAHUN||"",rk["PEMEGANG REKOD"]||""].filter(Boolean).join(" • ");
-  return `<div><b style="color:#0b3b6f">🏆 ${esc(nilai)}</b>${meta?`<div class="d" style="color:#667085;font-size:10.5px">${esc(meta)}</div>`:""}</div>`;
+  return `<div><b style="color:#0b3b6f">🏆 ${esc(teksKejohanan(rk,info))}</b></div>`;
 }
 
 function gayaLaporan(){
@@ -1667,8 +1766,8 @@ function cetakLaporan(mod){
       isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span></h2>`;
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
-        const rkKat=kejohananKat(n,k);
-        const rkTxt=rkKat?` <span style="font-weight:400;text-transform:none;color:#0b3b6f">• 🏆 ${esc(rkKat.KEPUTUSAN||fmtNilai(Number(rkKat.NILAI),info))}${rkKat["NAMA KEJOHANAN"]?" ("+esc(rkKat["NAMA KEJOHANAN"])+(rkKat.TAHUN?" "+esc(rkKat.TAHUN):"")+")":""}${rkKat["PEMEGANG REKOD"]?" — "+esc(rkKat["PEMEGANG REKOD"]):""}</span>`:"";
+        const rkSemua=kejohananKatSemua(n,k).filter(x=>Number(x.NILAI)>0);
+        const rkTxt=rkSemua.length?` <span style="font-weight:400;text-transform:none;color:#0b3b6f">• 🏆 ${rkSemua.map(x=>esc(teksKejohanan(x,info))).join(" • ")}</span>`:"";
         isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet${rkTxt}</h3>
         <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
@@ -1999,7 +2098,7 @@ function overlay(html){
   document.body.appendChild(d);
   try{ history.pushState({ov:1},"", "#ov"); }catch(e){}
 }
-function tutup(){ const o=$("#ov"); if(o) o.remove(); }
+function tutup(){ try{ camTutup(); }catch(e){} const o=$("#ov"); if(o) o.remove(); }
 
 /* ---------- Mula ---------- */
 if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));

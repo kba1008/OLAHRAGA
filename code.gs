@@ -659,6 +659,8 @@ function simpanRekodKejohanan(p) {
     "", acara, kategori, p.namaKejohanan || "", p.tahun || "", p.pemegang || "",
     nilai, p.keputusan || "", p.catatan || "", p.olehNama || "", tms
   ];
+  var peringkat = String(p.namaKejohanan || "MSSD").toUpperCase().indexOf("MSSK") >= 0 ? "MSSK" : "MSSD";
+  baris[3] = peringkat;
   var v = s.getDataRange().getValues();
   if (p.id) {
     for (var i = 1; i < v.length; i++) {
@@ -670,9 +672,10 @@ function simpanRekodKejohanan(p) {
     }
     throw new Error("Rekod kejohanan tidak dijumpai.");
   }
-  /* Satu rekod sahaja bagi setiap acara + kategori — ganti jika sudah ada. */
+  /* Satu rekod bagi setiap acara + kategori + peringkat (MSSD / MSSK) — ganti jika sudah ada. */
   for (var j = 1; j < v.length; j++) {
-    if (String(v[j][1]) === acara && String(v[j][2]).toUpperCase() === kategori) {
+    var pj = String(v[j][3] || "").toUpperCase().indexOf("MSSK") >= 0 ? "MSSK" : "MSSD";
+    if (String(v[j][1]) === acara && String(v[j][2]).toUpperCase() === kategori && pj === peringkat) {
       baris[0] = v[j][0];
       s.getRange(j + 1, 1, 1, baris.length).setValues([baris]);
       return { ok: true, dikemaskini: true, rekod: objKejohanan(baris) };
@@ -868,17 +871,67 @@ function logRalat(payload, err) {
 /* Aksi ringan tidak perlu Script Lock — bolehkan parallelism supaya kehadiran laju */
 var TANPA_LOCK = { ping: 1, data: 1, login: 1 };
 
+
+/* ============ CACHE PANTAS (Script Cache) ============
+   Balasan "data" disimpan dalam cache supaya pemuatan jauh lebih laju.
+   Cache dibatalkan secara automatik setiap kali ada penulisan data. */
+var CACHE_KEY = "AT_DATA_V1";
+var CACHE_TTL = 120; /* saat */
+
+function cacheBaca_() {
+  try {
+    var c = CacheService.getScriptCache();
+    var meta = c.get(CACHE_KEY);
+    if (!meta) return null;
+    var n = Number(meta), keys = [];
+    for (var i = 0; i < n; i++) keys.push(CACHE_KEY + "_" + i);
+    var m = c.getAll(keys), s = "";
+    for (i = 0; i < n; i++) { if (m[CACHE_KEY + "_" + i] == null) return null; s += m[CACHE_KEY + "_" + i]; }
+    return s;
+  } catch (e) { return null; }
+}
+function cacheTulis_(s) {
+  try {
+    var c = CacheService.getScriptCache(), size = 90000, n = Math.ceil(s.length / size);
+    if (n > 40) return; /* terlalu besar untuk cache */
+    var o = {};
+    for (var i = 0; i < n; i++) o[CACHE_KEY + "_" + i] = s.substr(i * size, size);
+    c.putAll(o, CACHE_TTL);
+    c.put(CACHE_KEY, String(n), CACHE_TTL);
+  } catch (e) {}
+}
+function cacheBatal_() { try { CacheService.getScriptCache().remove(CACHE_KEY); } catch (e) {} }
+
+function balasMentah_(json, callback) {
+  if (callback) return ContentService.createTextOutput(callback + "(" + json + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
 function proses(payload, callback) {
   var mula = new Date().getTime();
   try {
     var fn = TINDAKAN[payload.action];
     if (!fn) throw new Error("Tindakan tidak sah: " + payload.action);
+
+    /* Bacaan penuh: guna cache supaya balasan hampir serta-merta */
+    if (payload.action === "data" && !payload.paksa) {
+      var raw = cacheBaca_();
+      if (raw) return balasMentah_('{"ok":true,"cache":1,"data":' + raw + '}', callback);
+      raw = JSON.stringify(fn(payload));
+      cacheTulis_(raw);
+      return balasMentah_('{"ok":true,"data":' + raw + '}', callback);
+    }
+
     if (TANPA_LOCK[payload.action]) {
       return balas({ ok: true, data: fn(payload), ms: new Date().getTime() - mula }, callback);
     }
     var lock = LockService.getScriptLock();
     lock.waitLock(15000);
-    try { return balas({ ok: true, data: fn(payload), ms: new Date().getTime() - mula }, callback); }
+    try {
+      var hasil = fn(payload);
+      cacheBatal_(); /* data berubah — batalkan cache supaya semua peranti dapat data terkini */
+      return balas({ ok: true, data: hasil, ms: new Date().getTime() - mula }, callback);
+    }
     finally { lock.releaseLock(); }
   } catch (err) {
     logRalat(payload, err);
