@@ -212,7 +212,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzRvSCM0zbm3gXPL_sd9Tw_bRQAtKYzlTAFQWngttUETwbKK2S5rMTtUiwEj-gYsaIFbg/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzLuaMFseZsXPeUKGYzfKM1b4mvOlmz5JTP7SSs4Up1bfdureoEtGl36N1j8p5nKwtuTg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -732,34 +732,66 @@ function vHome(){
 }
 
 /* ---------- 4. Kehadiran (OPTIMISTIK + LOCK BUTANG) ---------- */
-let kTarikh=today(), kCari="";
+let kTarikh=today(), kCari="", kTapis="SEMUA";
 const PENDING_KEH={}; /* atletId → true semasa hantar */
 
+/* acara yang disertai seorang atlet */
+function acaraAtlet(id){
+  return ((DB&&DB.penyertaan)||[]).filter(p=>String(p["ATLET ID"])===String(id)).map(p=>String(p.ACARA||""));
+}
 function tapisKehadiran(){
-  const list=(DB.atlet||[]).filter(a=>{
-    const q=kCari.toLowerCase();
-    return !q||String(a["NAMA PENUH"]).toLowerCase().includes(q)||String(a.KATEGORI).toLowerCase().includes(q)||String(a.SEKOLAH).toLowerCase().includes(q);
-  });
+  const q=kCari.trim().toLowerCase();
   const rec={}; (DB.kehadiran||[]).filter(k=>String(k.TARIKH).slice(0,10)===kTarikh).forEach(k=>rec[k["ATLET ID"]]=k);
+  let list=(DB.atlet||[]).filter(a=>{
+    if(!q) return true;
+    if(String(a["NAMA PENUH"]).toLowerCase().includes(q)) return true;
+    if(String(a.KATEGORI).toLowerCase().includes(q)) return true;
+    if(String(a.SEKOLAH).toLowerCase().includes(q)) return true;
+    return acaraAtlet(a.ID).some(n=>n.toLowerCase().includes(q));
+  });
+  if(kTapis!=="SEMUA"){
+    list=list.filter(a=>{
+      const st=rec[a.ID]?String(rec[a.ID].STATUS).toUpperCase():"";
+      if(kTapis==="HADIR") return st==="HADIR";
+      if(kTapis==="TIDAK") return st==="TIDAK HADIR";
+      return !st; /* BELUM */
+    });
+  }
   return {list,rec};
 }
 function renderSenaraiKehadiran(){
   const kotak=$("#senaraiK"); if(!kotak) return;
   const {list,rec}=tapisKehadiran();
   kotak.innerHTML=list.map(a=>itemKehadiran(a,rec[a.ID])).join("")||`<div class="card small">Tiada atlet dijumpai.</div>`;
+  const kk=$("#kKira"); if(kk) kk.textContent=list.length;
 }
 function cariKehadiran(el){
   kCari=el.value;
   renderSenaraiKehadiran();
 }
+function setTapisK(v){
+  kTapis=v;
+  document.querySelectorAll("#kTapisBar button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
+  renderSenaraiKehadiran();
+}
 function vKehadiran(){
   const {list,rec}=tapisKehadiran();
+  const semua=(DB.atlet||[]).length;
   const hadir=Object.values(rec).filter(k=>String(k.STATUS).toUpperCase()==="HADIR").length;
+  const tidak=Object.values(rec).filter(k=>String(k.STATUS).toUpperCase()==="TIDAK HADIR").length;
+  const belum=semua-hadir-tidak;
+  const tab=(v,t)=>`<button class="${kTapis===v?"on":""}" data-v="${v}" onclick="setTapisK('${v}')">${t}</button>`;
   app().innerHTML=`${topbar("Kehadiran Atlet","home")}
   <div class="card">
     <div class="row"><div><label>Tarikh</label><input type="date" id="kt" value="${kTarikh}" onchange="kTarikh=this.value;render()"/></div>
-    <div><label>Cari</label><input id="kc" value="${esc(kCari)}" placeholder="Nama / kategori / sekolah" autocomplete="off" oninput="cariKehadiran(this)"/></div></div>
-    <div class="small" style="margin-top:10px">Hadir: <b style="color:var(--ok)">${hadir}</b> / ${(DB.atlet||[]).length} atlet</div>
+    <div><label>Cari</label><input id="kc" value="${esc(kCari)}" placeholder="Nama / kategori / sekolah / acara (cth: 100M)" autocomplete="off" oninput="cariKehadiran(this)"/></div></div>
+    <div class="tabs" id="kTapisBar" style="margin-top:10px">
+      ${tab("SEMUA","Semua ("+semua+")")}
+      ${tab("HADIR","Hadir ("+hadir+")")}
+      ${tab("TIDAK","Tidak Hadir ("+tidak+")")}
+      ${tab("BELUM","Belum Tanda ("+belum+")")}
+    </div>
+    <div class="small" style="margin-top:10px">Hadir: <b style="color:var(--ok)">${hadir}</b> / ${semua} atlet • Dipapar: <b id="kKira">${list.length}</b></div>
     ${bolehUrusAtlet()?`<button class="btn sm" style="margin-top:10px" onclick="formAtlet()">+ Tambah Atlet Baharu</button>`:`<div class="small" style="margin-top:8px">Hanya Master Admin atau jurulatih yang dilantik boleh menambah / memadam atlet.</div>`}
   </div>
   <div id="senaraiK">
@@ -769,12 +801,14 @@ function vKehadiran(){
 function itemKehadiran(a,k){
   const st=k?String(k.STATUS).toUpperCase():"";
   const bz=!!PENDING_KEH[a.ID];
+  const ac=acaraAtlet(a.ID);
   return `<div class="item" id="ki-${esc(a.ID)}">
     <img class="av" src="${avatar(a)}" ${avErr(a)} alt="${esc(a["NAMA PENUH"])}"/>
     <div style="flex:1" onclick="go('profil',{id:'${esc(a.ID)}'})">
       <div class="nm">${esc(a["NAMA PENUH"])}</div>
       <div class="sub">${esc(a.KATEGORI)} • ${esc(a.SEKOLAH)}</div>
-      ${st?`<div class="sub">Status: <b style="color:${st==="HADIR"?"var(--ok)":"var(--bad)"}">${esc(st)}</b>${bz?' <span class="pill warn">menyegerak…</span>':''}</div>`:(bz?'<div class="sub"><span class="pill warn">menyegerak…</span></div>':'')}
+      ${ac.length?`<div class="sub" style="opacity:.85">🏃 ${esc(ac.slice(0,4).join(", "))}${ac.length>4?" +"+(ac.length-4):""}</div>`:``}
+      ${st?`<div class="sub">Status: <b style="color:${st==="HADIR"?"var(--ok)":"var(--bad)"}">${esc(st)}</b>${bz?' <span class="pill warn">Loading</span>':''}</div>`:(bz?'<div class="sub"><span class="pill warn">Loading</span></div>':'')}
     </div>
     <div class="right">
       <button class="btn sm ${st==="HADIR"?"ok":"ghost"}" ${bz?"disabled":""} onclick="tandaHadir('${esc(a.ID)}','HADIR')">Hadir</button>
@@ -783,8 +817,10 @@ function itemKehadiran(a,k){
 }
 function kemasItemK(id){
   const el=document.getElementById("ki-"+id);
-  const a=atletById(id); if(!el||!a) return;
+  const a=atletById(id); if(!a) return;
   const rec=(DB.kehadiran||[]).find(k=>String(k["ATLET ID"])===String(id) && String(k.TARIKH).slice(0,10)===kTarikh);
+  if(kTapis!=="SEMUA" && !PENDING_KEH[id]){ renderSenaraiKehadiran(); return; }
+  if(!el) return;
   el.outerHTML=itemKehadiran(a,rec);
 }
 async function tandaHadir(id,status){
