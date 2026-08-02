@@ -562,14 +562,22 @@ async function segerakSenyap(){
   try{
     const d=await apiJsonp("data",{paksa:1},45000);
     DB=d; simpanCacheDB(d);
-    if(!$("#ov")) render();           /* jangan ganggu bila borang sedang dibuka */
+    if(bolehRenderSemula()) render();  /* jangan ganggu bila borang/input sedang digunakan */
   }catch(e){ /* senyap sahaja */ }
   finally{ SEGERAK=false; lencanaSegerak(false); }
 }
 function jadualSegerak(ms){ clearTimeout(T_SEGERAK); T_SEGERAK=setTimeout(segerakSenyap,ms||2500); }
 /* Segerak berkala & bila app kembali aktif */
-setInterval(()=>{ if(document.visibilityState==="visible" && DB && !$("#ov")) segerakSenyap(); },45000);
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && DB) jadualSegerak(800); });
+/* Jangan render semula bila pengguna sedang menaip (borang akan hilang isinya) */
+function bolehRenderSemula(){
+  if($("#ov")) return false;                 /* overlay/borang terbuka */
+  if(modeAuth==="daftar" && !U) return false; /* borang pendaftaran sedang diisi */
+  const a=document.activeElement;
+  if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
+  return true;
+}
+setInterval(()=>{ if(document.visibilityState==="visible" && DB && bolehRenderSemula()) segerakSenyap(); },45000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && DB && bolehRenderSemula()) jadualSegerak(800); });
 function tetapApi(){ if(!TEKNISION) return modTeknision(); localStorage.removeItem(LS_API); API=API_URL_LALAI; render(); }
 function modTeknision(){
   if(TEKNISION) return go("diagnostik");
@@ -654,6 +662,7 @@ async function simpanApi(){
 
 /* ---------- 2. Daftar / Log Masuk ---------- */
 let modeAuth="login";
+let DRAF_DAFTAR={n:"",e:"",p:"",j:"",s:"",t:""};
 function skrinAuth(){
   const L=modeAuth==="login";
   app().innerHTML=`${head("AtletTrack","Sistem Kehadiran & Rekod Latihan Atlet")}
@@ -668,12 +677,12 @@ function skrinAuth(){
       <button class="btn" onclick="doLogin()">Log Masuk</button>
       <p class="small" style="margin-top:12px">Akaun akan kekal log masuk dalam telefon ini sehingga anda log keluar.</p>
     `:`
-      <label>Nama Penuh Guru</label><input id="n" />
-      <label>Emel</label><input id="e" />
-      <label>Kata Laluan</label><input id="p" type="password" />
-      <label>Jawatan Semasa Sesi Latihan</label><input id="j" placeholder="Cth: Jurulatih 100M / Pengurus" />
-      <label>Sekolah</label><input id="s" />
-      <label>No Telefon</label><input id="t" inputmode="tel" />
+      <label>Nama Penuh Guru</label><input id="n" value="${esc(DRAF_DAFTAR.n)}" oninput="DRAF_DAFTAR.n=this.value" autocomplete="name" />
+      <label>Emel</label><input id="e" value="${esc(DRAF_DAFTAR.e)}" oninput="DRAF_DAFTAR.e=this.value" autocomplete="email" />
+      <label>Kata Laluan</label><input id="p" type="password" value="${esc(DRAF_DAFTAR.p)}" oninput="DRAF_DAFTAR.p=this.value" autocomplete="new-password" />
+      <label>Jawatan Semasa Sesi Latihan</label><input id="j" value="${esc(DRAF_DAFTAR.j)}" oninput="DRAF_DAFTAR.j=this.value" placeholder="Cth: Jurulatih 100M / Pengurus" />
+      <label>Sekolah</label><input id="s" value="${esc(DRAF_DAFTAR.s)}" oninput="DRAF_DAFTAR.s=this.value" />
+      <label>No Telefon</label><input id="t" inputmode="tel" value="${esc(DRAF_DAFTAR.t)}" oninput="DRAF_DAFTAR.t=this.value" autocomplete="tel" />
       <button class="btn" onclick="doDaftar()">Daftar Akaun</button>
     `}
   </div>
@@ -689,10 +698,11 @@ async function doLogin(){
   catch(e){ toastRalat(e); render(); }
 }
 async function doDaftar(){
-  const p={nama:$("#n").value.trim(),emel:$("#e").value.trim(),kataLaluan:$("#p").value,jawatan:$("#j").value.trim(),sekolah:$("#s").value.trim(),telefon:$("#t").value.trim()};
+  const nilai=(id,k)=>{ const el=$(id); const v=el?el.value:DRAF_DAFTAR[k]; DRAF_DAFTAR[k]=v||""; return v||""; };
+  const p={nama:nilai("#n","n").trim(),emel:nilai("#e","e").trim(),kataLaluan:nilai("#p","p"),jawatan:nilai("#j","j").trim(),sekolah:nilai("#s","s").trim(),telefon:nilai("#t","t").trim()};
   if(Object.values(p).some(v=>!v)) return toast("Sila lengkapkan semua maklumat");
   loading("Mendaftar...");
-  try{ U=await api("daftar",p); localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Pendaftaran berjaya"); VIEW="home"; render(); jadualSegerak(500); }
+  try{ U=await api("daftar",p); DRAF_DAFTAR={n:"",e:"",p:"",j:"",s:"",t:""}; localStorage.setItem(LS_USER,JSON.stringify(U)); toast("Pendaftaran berjaya"); VIEW="home"; render(); jadualSegerak(500); }
   catch(e){ toastRalat(e); render(); }
 }
 
