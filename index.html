@@ -208,7 +208,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbw-YqK_fX6dSfnT0SN_QzLM2_wJyT-h5pMUZDB2fEXVnl14PuHHHjmQK_FGYXvC3vln/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycby_Y4c-e4BugxJlWUm1At-41CEQ5DOkZe4RY7ToAsO2EwnRfKSxU9_0H1WiLqgzLUB6Wg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1119,7 +1119,10 @@ function itemAcaraDetail(n,p,info,boleh,t){
       ${barisInfo}
       ${rHariIni.length?`<div class="sub">Rekod hari ini (${rHariIni.length}) — terbaik di hadapan:</div>${chips}`:""}
     </div>
-    ${boleh && !isBerpasukan(n)?`<div class="right"><button class="btn sm" onclick="formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button></div>`:""}
+    ${boleh?`<div class="right">
+      ${!isBerpasukan(n)?`<button class="btn sm" onclick="event.stopPropagation();formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>`:""}
+      <button class="btn sm ${hadir?"ok":"ghost"}" ${PENDING_KEH[p["ATLET ID"]]?"disabled":""} style="margin-top:6px" onclick="event.stopPropagation();tandaHadirAcara('${esc(n)}','${esc(p["ATLET ID"])}','${hadir?"TIDAK HADIR":"HADIR"}')">${PENDING_KEH[p["ATLET ID"]]?"…":(hadir?"✅ Hadir":"✅ Tanda Hadir")}</button>
+    </div>`:""}
   </div>`;
 }
 
@@ -1136,6 +1139,19 @@ async function keluarAtletAcara(n,id){
     if(buangRekod && DB.rekod && DB.rekod[n]) DB.rekod[n]=DB.rekod[n].filter(x=>String(x["ATLET ID"])!==String(id));
     render(); toast("Atlet dikeluarkan dari acara");
   }catch(e){ toastRalat(e); }
+}
+/* Tanda kehadiran terus dari mod Rekod Latihan (jurulatih acara / Master Admin) */
+async function tandaHadirAcara(n,id,status){
+  if(!bolehRekod(n)) return toast("Hanya jurulatih acara ini atau Master Admin boleh menanda kehadiran.");
+  if(PENDING_KEH[id]) return;
+  const a=atletById(id)||{}; const t=today();
+  setKehadiranLokal(id,t,status,a["NAMA PENUH"]||"",a.KATEGORI||"",a.SEKOLAH||"");
+  PENDING_KEH[id]=true; bumpPending(+1); kemasItemAD(n,id);
+  try{
+    await api("kehadiran",{tarikh:t,atletId:id,nama:a["NAMA PENUH"]||"",kategori:a.KATEGORI||"",sekolah:a.SEKOLAH||"",status,...who()});
+    toast(status==="HADIR"?"Kehadiran ditanda: HADIR":"Kehadiran ditanda: TIDAK HADIR");
+  }catch(e){ toastRalat(e); }
+  finally{ PENDING_KEH[id]=false; bumpPending(-1); kemasItemAD(n,id); }
 }
 function kemasItemAD(n,atletId){
   const el=document.getElementById(`ad-${n}-${atletId}`);
