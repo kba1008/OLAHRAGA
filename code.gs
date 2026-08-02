@@ -159,7 +159,16 @@ function setupSekaliSahaja() {
 }
 
 /* ---------------- Auth ---------------- */
-function isAdmin(emel) { return String(emel || "").toLowerCase() === ADMIN_EMEL; }
+function isMasterAdmin(emel) { return String(emel || "").toLowerCase().trim() === ADMIN_EMEL; }
+/* Sub Admin — guru yang dilantik oleh Master Admin (PERANAN = SUBADMIN) */
+function isSubAdmin(emel) {
+  var e = String(emel || "").toLowerCase().trim();
+  if (!e || e === ADMIN_EMEL) return false;
+  var g = cariGuru(e);
+  return !!g && String(g["PERANAN"] || "").toUpperCase().trim() === "SUBADMIN";
+}
+/* Sub Admin mempunyai kuasa penuh sama seperti Master Admin (kecuali padam Master Admin) */
+function isAdmin(emel) { return isMasterAdmin(emel) || isSubAdmin(emel); }
 
 function cariGuru(emel) {
   var e = String(emel || "").toLowerCase().trim();
@@ -197,7 +206,7 @@ function semuaData(p) {
   var rekod = {};
   acara.forEach(function (a) { rekod[a["ACARA"]] = baca(namaSheetRekod(a["ACARA"])); });
   return {
-    guru: baca(SHEET_GURU).map(function (g) { return { nama: g["NAMA PENUH"], emel: g["EMEL"], jawatan: g["JAWATAN"], sekolah: g["SEKOLAH"], telefon: g["NO TELEFON"] }; }),
+    guru: baca(SHEET_GURU).map(function (g) { return { nama: g["NAMA PENUH"], emel: g["EMEL"], jawatan: g["JAWATAN"], sekolah: g["SEKOLAH"], telefon: g["NO TELEFON"], peranan: String(g["PERANAN"] || "GURU").toUpperCase() }; }),
     atlet: baca(SHEET_ATLET).map(function (a) { a["GAMBAR (URL)"] = normalGambar(a["GAMBAR (URL)"]); return a; }),
     kehadiran: baca(SHEET_KEHADIRAN).map(function (k) { k["TARIKH"] = tarikhStr(k["TARIKH"]); return k; }),
     acara: acara,
@@ -816,6 +825,57 @@ function tambahAcara(p) {
 }
 
 /* ---------------- Router ---------------- */
+
+/* ---------------- Pengurusan Sub Admin (Master Admin sahaja) ---------------- */
+function tukarPerananGuru_(emel, peranan) {
+  var e = String(emel || "").toLowerCase().trim();
+  if (!e) throw new Error("Emel pengguna diperlukan.");
+  if (e === ADMIN_EMEL) throw new Error("Peranan Master Admin tidak boleh diubah.");
+  var s = ss().getSheetByName(SHEET_GURU);
+  if (!s) throw new Error("Pengguna tidak dijumpai.");
+  var v = s.getDataRange().getValues();
+  var kolEmel = 2, kolPeranan = 7; /* ikut HEADERS[SHEET_GURU] */
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][kolEmel]).toLowerCase().trim() === e) {
+      s.getRange(i + 1, kolPeranan + 1).setValue(peranan);
+      return { ok: true, emel: e, peranan: peranan, nama: v[i][1] };
+    }
+  }
+  throw new Error("Pengguna berdaftar tidak dijumpai.");
+}
+
+function lantikSubAdmin(p) {
+  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh melantik Sub Admin.");
+  return tukarPerananGuru_(p.emel, "SUBADMIN");
+}
+
+function buangSubAdmin(p) {
+  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh menarik balik jawatan Sub Admin.");
+  return tukarPerananGuru_(p.emel, "GURU");
+}
+
+/* Padam pengguna berdaftar. Master Admin & Sub Admin boleh, tetapi
+   Master Admin aplikasi ini TIDAK BOLEH dipadam oleh sesiapa. */
+function padamGuru(p) {
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin atau Sub Admin boleh memadam pengguna.");
+  var e = String(p.emel || "").toLowerCase().trim();
+  if (!e) throw new Error("Emel pengguna diperlukan.");
+  if (e === ADMIN_EMEL) throw new Error("Master Admin aplikasi ini tidak boleh dipadam.");
+  if (isSubAdmin(e) && !isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh memadam Sub Admin.");
+  if (e === String(p.olehEmel || "").toLowerCase().trim()) throw new Error("Anda tidak boleh memadam akaun sendiri.");
+  var s = ss().getSheetByName(SHEET_GURU);
+  if (!s) throw new Error("Pengguna tidak dijumpai.");
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][2]).toLowerCase().trim() === e) {
+      s.deleteRow(i + 1);
+      buangBarisMengikut(SHEET_JURULATIH, 1, e);
+      return { ok: true };
+    }
+  }
+  throw new Error("Pengguna tidak dijumpai.");
+}
+
 var TINDAKAN = {
   ping: function () { return { ok: true, masa: nowStr() }; },
   authorizeAll: function () { return { laporan: authorizeAll() }; },
@@ -828,6 +888,9 @@ var TINDAKAN = {
   padamFailAtlet: padamFailAtlet,
   tambahAtlet: tambahAtlet,
   padamAtlet: padamAtlet,
+  lantikSubAdmin: lantikSubAdmin,
+  buangSubAdmin: buangSubAdmin,
+  padamGuru: padamGuru,
   baikiUrlGambar: function () { return { mesej: baikiUrlGambar() }; },
   kemaskiniAtlet: kemaskiniAtlet,
   kehadiran: simpanKehadiran,
