@@ -595,6 +595,21 @@ function tetapkanAcaraAtlet(p) {
   return { ok: true, acara: mahu, tambah: tambah, buang: buang };
 }
 
+function kemaskiniRekodPeribadi(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh mengemaskini rekod peribadi.");
+  dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  var s = ss().getSheetByName(SHEET_PENYERTAAN);
+  var v = s.getDataRange().getValues();
+  var nilai = String(p.rekodPeribadi == null ? "" : p.rekodPeribadi).trim();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(p.acara) && String(v[i][1]) === String(p.atletId)) {
+      s.getRange(i + 1, 6).setValue(nilai);
+      return { ok: true, rekodPeribadi: nilai };
+    }
+  }
+  throw new Error("Atlet tiada dalam acara ini.");
+}
+
 function simpanRekodLatihan(p) {
   if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh merekod.");
   var tarikh = p.tarikh || hariIni();
@@ -820,6 +835,7 @@ var TINDAKAN = {
   buangJurulatih: buangJurulatih,
   tambahPenyertaan: tambahPenyertaan,
   padamPenyertaan: padamPenyertaan,
+  kemaskiniRekodPeribadi: kemaskiniRekodPeribadi,
   tetapkanAcaraAtlet: tetapkanAcaraAtlet,
   rekod: simpanRekodLatihan,
   kemaskiniRekod: kemaskiniRekod,

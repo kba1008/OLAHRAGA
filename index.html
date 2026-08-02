@@ -208,7 +208,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTrack — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbw-YqK_fX6dSfnT0SN_QzLM2_wJyT-h5pMUZDB2fEXVnl14PuHHHjmQK_FGYXvC3vln/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycby_Y4c-e4BugxJlWUm1At-41CEQ5DOkZe4RY7ToAsO2EwnRfKSxU9_0H1WiLqgzLUB6Wg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1105,7 +1105,7 @@ function itemAcaraDetail(n,p,info,boleh,t){
       : `<span style="color:var(--warn)">• perlu ${info.JENIS==="MASA"?"laju":"tambah"} ${esc(fmtNilai(beza,info))} lagi</span>`;
   }
   const barisInfo=`<div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center">
-    <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b></span>
+    <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b>${boleh?` <span class="pill" style="cursor:pointer" onclick="event.stopPropagation();formRekodPeribadi('${esc(n)}','${esc(p["ATLET ID"])}')">✎</span>`:""}</span>
     <span>⭐ Terbaik Latihan: <b>${b!==null?fmtNilai(b,info):"-"}</b></span>
     <span>📅 Terbaik Hari Ini: <b>${bHariIni!==null&&isFinite(bHariIni)&&bHariIni>0?fmtNilai(bHariIni,info):"-"}</b></span>
     ${rk?`<span>🏆 Sasaran (${esc(rk.KATEGORI)}): <b>${esc(rk.KEPUTUSAN||fmtNilai(Number(rk.NILAI),info))}</b></span>${jurang}`:""}
@@ -1152,6 +1152,37 @@ async function tandaHadirAcara(n,id,status){
     toast(status==="HADIR"?"Kehadiran ditanda: HADIR":"Kehadiran ditanda: TIDAK HADIR");
   }catch(e){ toastRalat(e); }
   finally{ PENDING_KEH[id]=false; bumpPending(-1); kemasItemAD(n,id); }
+}
+/* Rekod Peribadi (kejohanan lepas) — jurulatih acara / Master Admin sahaja */
+function formRekodPeribadi(n,id){
+  if(!bolehRekod(n)) return toast("Hanya jurulatih acara ini atau Master Admin boleh mengemaskini rekod peribadi.");
+  const p=penyertaan(n).find(x=>String(x["ATLET ID"])===String(id));
+  if(!p) return toast("Atlet tiada dalam acara ini.");
+  const rp=String(p["REKOD PERIBADI"]||"").trim();
+  const info=acaraInfo(n);
+  const hint=info&&info.JENIS==="MASA"?"cth 13.52 atau 1:15.45":"cth 4.85 (meter/mata)";
+  overlay(`<div class="big">Rekod Peribadi — ${esc(n)}</div>
+  <div class="small">${esc(p["NAMA ATLET"]||"")} • rekod pada kejohanan lepas (${esc(hint)})</div>
+  <label>Rekod Peribadi</label><input id="rpv" value="${esc(rp)}" placeholder="${esc(hint)}"/>
+  <button class="btn" id="btnRP" onclick="simpanRekodPeribadi('${esc(n)}','${esc(id)}')">Simpan</button>
+  ${rp?`<button class="btn bad" onclick="padamRekodPeribadi('${esc(n)}','${esc(id)}')">🗑 Buang Rekod</button>`:""}
+  <button class="btn ghost" onclick="tutup()">Batal</button>`);
+}
+async function simpanRekodPeribadi(n,id){
+  const btn=$("#btnRP"); const nilai=($("#rpv").value||"").trim();
+  if(!nilai) return toast("Masukkan nilai rekod atau tekan Buang Rekod");
+  if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  try{ await simpanRP(n,id,nilai); toast("Rekod peribadi dikemaskini"); }
+  catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
+}
+async function padamRekodPeribadi(n,id){
+  if(!confirm("Buang rekod peribadi atlet ini bagi acara "+n+"?")) return;
+  try{ await simpanRP(n,id,""); toast("Rekod peribadi dibuang"); }catch(e){ toastRalat(e); }
+}
+async function simpanRP(n,id,nilai){
+  await api("kemaskiniRekodPeribadi",{acara:n,atletId:id,rekodPeribadi:nilai,...who()});
+  (DB.penyertaan||[]).forEach(x=>{ if(x.ACARA===n && String(x["ATLET ID"])===String(id)) x["REKOD PERIBADI"]=nilai; });
+  tutup(); render();
 }
 function kemasItemAD(n,atletId){
   const el=document.getElementById(`ad-${n}-${atletId}`);
@@ -1414,7 +1445,7 @@ function vProfil(){
       <div><div class="nm">${esc(n)}</div><div class="small">${rs.length} rekod • Purata ${rs.length?fmtNilai(purata(rs.map(r=>Number(r.NILAI)||0)),x):"-"}</div></div>
       <div class="right"><span class="badge">TERBAIK ${b!==null?fmtNilai(b,x):"-"}</span></div></div>
       <div class="sub" style="display:flex;flex-wrap:wrap;gap:4px 10px">
-        <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b></span>
+        <span>🏅 Rekod Peribadi: <b>${rp?esc(rp):"-"}</b>${bolehRekod(n)?` <span class="pill" style="cursor:pointer" onclick="event.stopPropagation();formRekodPeribadi('${esc(n)}','${esc(a.ID)}')">✎ Kemaskini</span>`:""}</span>
         <span>⭐ Terbaik Latihan: <b>${b!==null?fmtNilai(b,x):"-"}</b></span>
       </div>
       ${rs.slice(0,8).map(r=>`<div class="sub">• ${esc(fmtTarikh(r.TARIKH))} ${esc(fmtMasa(r.MASA))} — <b>${esc(r.KEPUTUSAN)}</b></div>`).join("")||'<div class="sub">Tiada rekod</div>'}
