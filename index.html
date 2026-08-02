@@ -1016,8 +1016,7 @@ function headerKategoriRekod(n,info,k,bil,boleh){
     const rk=kejohananPeringkat(n,k,p);
     if(rk) return `<span style="display:inline-flex;align-items:center;gap:4px">
         <b>${esc(teksKejohanan(rk,info))}</b>
-        ${boleh?`<a href="javascript:void(0)" style="opacity:.7;text-decoration:none" onclick="formKejohanan('${esc(n)}','${esc(k)}','${esc(rk.ID)}')">✎</a>
-        <a href="javascript:void(0)" style="opacity:.7;text-decoration:none;color:var(--bad)" onclick="padamKejohanan('${esc(n)}','${esc(rk.ID)}')">✕</a>`:""}
+        ${boleh?`<a href="javascript:void(0)" style="opacity:.85;text-decoration:none;color:var(--bad)" title="Kemas kini / padam rekod" onclick="formKejohanan('${esc(n)}','${esc(k)}','${esc(rk.ID)}')">✎</a>`:""}
       </span>`;
     return boleh
       ? `<a href="javascript:void(0)" style="opacity:.9;text-decoration:none;color:var(--bad);font-weight:600" onclick="formKejohanan('${esc(n)}','${esc(k)}','','${p}')">${p} : + tetapkan</a>`
@@ -1043,6 +1042,7 @@ function formKejohanan(n,kat,id,peringkat){
   <input id="kv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 13.30 atau 1:15.45":"Cth: 5.20"}" value="${esc(sedia&&sedia.NILAI?String(sedia.NILAI):"")}"/>
   <label>Tahun</label><input id="kt" inputmode="numeric" placeholder="Cth: 2023" value="${esc(sedia?sedia.TAHUN:"")}"/>
   <button class="btn" id="btnK" onclick="simpanKejohanan('${esc(n)}','${esc(sedia?sedia.ID:"")}')">Simpan</button>
+  ${sedia?`<button class="btn ghost" style="color:var(--bad);border-color:var(--bad)" onclick="padamKejohananDariForm('${esc(n)}','${esc(sedia.ID)}')">🗑 Padam Rekod Ini</button>`:""}
   <button class="btn ghost" onclick="tutup()">Batal</button>`);
 }
 async function simpanKejohanan(n,id){
@@ -1062,6 +1062,14 @@ async function simpanKejohanan(n,id){
     if(r&&r.rekod) DB.kejohanan.push(r.rekod);
     tutup(); render(); toast("Rekod kejohanan disimpan");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
+}
+async function padamKejohananDariForm(n,id){
+  if(!confirm("Padam rekod kejohanan ini?")) return;
+  try{
+    await api("padamRekodKejohanan",{acara:n,id,...who()});
+    DB.kejohanan=(DB.kejohanan||[]).filter(k=>String(k.ID)!==String(id));
+    tutup(); render(); toast("Rekod kejohanan dipadam");
+  }catch(e){ toastRalat(e); }
 }
 async function padamKejohanan(n,id){
   if(!confirm("Padam rekod kejohanan ini?")) return;
