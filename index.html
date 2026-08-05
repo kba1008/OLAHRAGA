@@ -216,7 +216,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzU57Ujt-m28cQmWievmsjcR58NcOXjZv88DHVwYohmnLth0EcsJpBbR6LUiqXBuYzU7Q/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxD8X5CWRKeUVzCt5bm2e3gyd7a3mUh3uqQhsKfVvUxmjssxp11STu-tiUGbt7513pnXA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -2032,12 +2032,34 @@ function cetakLaporanPingat(){
   const senarai=acaraList();
   if(!senarai.length) return toast("Tiada acara untuk dilaporkan.");
   let isi="", ada=0;
+  /* Ringkasan keseluruhan */
+  const S={acara:0,unit:0,atlet:0,emas:0,potensi:0,jauh:0,tiadaLatihan:0,tiadaSasaran:0,
+           atletLayak:0,atletPotensi:0,atletJauh:0,atletTiadaLatihan:0,atletTiadaSasaran:0};
+  const senaraiHarapan=[], senaraiPotensi=[], senaraiTiadaLatihan=[], senaraiTiadaSasaran=[];
   senarai.slice().sort((x,y)=>String(x.ACARA).localeCompare(String(y.ACARA))).forEach(ac=>{
     const n=ac.ACARA, a=analisisPingat(n), info=a.info;
     if(!a.kategori.length) return;
-    ada++;
+    ada++; S.acara++;
     isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""})</span></h2>`;
     a.kategori.forEach(g=>{
+      /* Kira statistik unit acara+kategori */
+      S.unit++; S.atlet+=g.baris.length;
+      const sasaranNum=Number(g.sasaran)||0;
+      let adaPotensi=false;
+      g.baris.forEach(b=>{
+        if(!b.adaRekod){S.atletTiadaLatihan++;return;}
+        if(!b.adaSasaran){S.atletTiadaSasaran++;return;}
+        if(b.layak){S.atletLayak++;return;}
+        /* "Ada potensi" = belum layak tetapi jurang <= 10% daripada sasaran */
+        const hampir = sasaranNum>0 && Math.abs(b.jurang)/sasaranNum<=0.10;
+        if(hampir){S.atletPotensi++; adaPotensi=true;} else S.atletJauh++;
+      });
+      const semuaTiadaLatihan = g.bilTiadaRekod===g.baris.length;
+      if(!g.adaSasaran){ S.tiadaSasaran++; senaraiTiadaSasaran.push(`${n} — ${g.kategori}`); }
+      else if(semuaTiadaLatihan){ S.tiadaLatihan++; senaraiTiadaLatihan.push(`${n} — ${g.kategori}`); }
+      else if(g.bilLayak>0){ S.emas++; senaraiHarapan.push(`${n} — ${g.kategori} (${g.bilLayak} atlet)`); }
+      else if(adaPotensi){ S.potensi++; senaraiPotensi.push(`${n} — ${g.kategori}`); }
+      else S.jauh++;
       isi+=`<h3 class="kat">Kategori: ${esc(g.kategori)} — ${g.adaSasaran
         ? `sasaran 🏆 NO.3 MSSK : ${esc(nilaiRingkas(g.rk,info))}${g.rk.TAHUN?" / "+esc(g.rk.TAHUN):""} • ${g.bilLayak}/${g.baris.length} berpotensi pingat`
         : `<span style="color:#b54708">⚠️ TIADA REKOD NO.3 MSSK — sila semak & tetapkan</span>`}${g.bilTiadaRekod?` • <span style="color:#b42318">${g.bilTiadaRekod} atlet tiada rekod latihan</span>`:""}</h3>
@@ -2053,8 +2075,34 @@ function cetakLaporanPingat(){
     isi+=`</div>`;
   });
   if(!ada) return toast("Tiada data untuk laporan anggaran pingat.");
-  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding NO.3 MSSK)",isi);
+  const kotak=(warna,tajuk,nilai,nota)=>`<div style="flex:1;min-width:135px;border:1px solid #e5e7eb;border-left:4px solid ${warna};border-radius:8px;padding:8px 10px">
+      <div style="font-size:11px;color:#475467">${tajuk}</div>
+      <div style="font-size:22px;font-weight:800;color:${warna};line-height:1.2">${nilai}</div>
+      <div style="font-size:10px;color:#667085">${nota}</div></div>`;
+  const senaraiBlok=(tajuk,warna,arr)=>{
+    const a=arr.filter(Boolean);
+    if(!a.length) return "";
+    return `<div style="margin-top:6px;font-size:11px"><b style="color:${warna}">${tajuk}:</b> ${esc(a.join(" ; "))}</div>`;
+  };
+  const ringkasan=`<div class="blok">
+    <h2 class="acara">RINGKASAN ANGGARAN PUNGUTAN PINGAT</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
+      ${kotak("#1d4ed8","Jumlah acara dipertandingkan",S.acara,`${S.unit} acara × kategori • ${S.atlet} penyertaan atlet`)}
+      ${kotak("#0f766e","Ada harapan dapat pingat",S.emas,`${S.atletLayak} atlet sudah lepasi NO.3 MSSK`)}
+      ${kotak("#b54708","Ada potensi (jurang ≤10%)",S.potensi,`${S.atletPotensi} atlet hampir sasaran`)}
+      ${kotak("#667085","Perlu usaha lebih",S.jauh,`${S.atletJauh} atlet jurang >10%`)}
+      ${kotak("#b42318","Belum ada rekod latihan",S.tiadaLatihan,`${S.atletTiadaLatihan} atlet tiada rekod langsung`)}
+      ${kotak("#b54708","Tiada rekod NO.3 MSSK",S.tiadaSasaran,`Tidak dapat dibanding — sila tetapkan`)}
+    </div>
+    <div style="font-size:11px;color:#475467">Anggaran pungutan pingat: <b style="color:#0f766e">${S.emas} pingat</b> berkemungkinan besar${S.potensi?`, tambahan <b style="color:#b54708">${S.potensi} pingat</b> jika atlet berpotensi berjaya menutup jurang ≤10%`:""}. Anggaran maksimum: <b>${S.emas+S.potensi}</b> daripada ${S.unit} acara/kategori.</div>
+    ${senaraiBlok("Acara ada harapan pingat","#0f766e",senaraiHarapan)}
+    ${senaraiBlok("Acara ada potensi","#b54708",senaraiPotensi)}
+    ${senaraiBlok("Acara belum ada rekod latihan","#b42318",senaraiTiadaLatihan)}
+    ${senaraiBlok("Acara tiada rekod NO.3 MSSK","#b54708",senaraiTiadaSasaran)}
+  </div>`;
+  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding NO.3 MSSK)",ringkasan+isi);
 }
+
 
 /* ---------- 10. Saya / Admin ---------- */
 function vSaya(){
