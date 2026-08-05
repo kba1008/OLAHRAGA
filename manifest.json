@@ -1,6 +1,6 @@
 {
   "name": "Sistem Kehadiran & Rekod Latihan Atlet",
-  "short_name": "AtletTrack",
+  "short_name": "AtletTraning",
   "description": "Aplikasi kehadiran atlet dan rekod prestasi latihan pusat. Pangkalan data: Google Sheet.",
   "start_url": "./index.html",
   "scope": "./",

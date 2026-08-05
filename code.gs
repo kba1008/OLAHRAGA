@@ -1,5 +1,5 @@
 /*************************************************************
- * AtletTrack — Code.gs  (versi kemaskini)
+ * AtletTraning — Code.gs  (versi kemaskini)
  * Pangkalan data TUNGGAL: Google Sheet ini.
  * Cara pasang:
  *  1. Buka Google Sheet baharu > Extensions > Apps Script
@@ -683,7 +683,7 @@ function simpanRekodKejohanan(p) {
     "", acara, kategori, p.namaKejohanan || "", p.tahun || "", p.pemegang || "",
     nilai, p.keputusan || "", p.catatan || "", p.olehNama || "", tms
   ];
-  var peringkat = String(p.namaKejohanan || "MSSD").toUpperCase().indexOf("MSSK") >= 0 ? "MSSK" : "MSSD";
+  var peringkat = peringkatKejohanan(p.namaKejohanan);
   baris[3] = peringkat;
   var v = s.getDataRange().getValues();
   if (p.id) {
@@ -696,9 +696,9 @@ function simpanRekodKejohanan(p) {
     }
     throw new Error("Rekod kejohanan tidak dijumpai.");
   }
-  /* Satu rekod bagi setiap acara + kategori + peringkat (MSSD / MSSK) — ganti jika sudah ada. */
+  /* Satu rekod bagi setiap acara + kategori + peringkat (MSSD / MSSK / NO.3 MSSK) — ganti jika sudah ada. */
   for (var j = 1; j < v.length; j++) {
-    var pj = String(v[j][3] || "").toUpperCase().indexOf("MSSK") >= 0 ? "MSSK" : "MSSD";
+    var pj = peringkatKejohanan(v[j][3]);
     if (String(v[j][1]) === acara && String(v[j][2]).toUpperCase() === kategori && pj === peringkat) {
       baris[0] = v[j][0];
       s.getRange(j + 1, 1, 1, baris.length).setValues([baris]);
@@ -708,6 +708,12 @@ function simpanRekodKejohanan(p) {
   baris[0] = idBaharu("RK", SHEET_KEJOHANAN);
   s.appendRow(baris);
   return { ok: true, rekod: objKejohanan(baris) };
+}
+
+function peringkatKejohanan(t) {
+  var s = String(t || "MSSD").toUpperCase().replace(/\s+/g, " ").trim();
+  if (/NO\.?\s*3/.test(s)) return "NO.3 MSSK";
+  return s.indexOf("MSSK") >= 0 ? "MSSK" : "MSSD";
 }
 
 function objKejohanan(b) {

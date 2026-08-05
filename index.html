@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>AtletTrack — Kehadiran & Rekod Latihan Atlet</title>
+<title>AtletTraning — Kehadiran & Rekod Latihan Atlet</title>
 <meta name="description" content="Sistem kehadiran atlet dan rekod prestasi latihan pusat. Pangkalan data Google Sheet." />
 <meta name="theme-color" content="#4f2df5" />
 <link rel="manifest" href="./manifest.json" />
@@ -213,7 +213,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
 
 <script>
 /* ============================================================
-   AtletTrack — PWA (versi kemas)
+   AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
 const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxD8X5CWRKeUVzCt5bm2e3gyd7a3mUh3uqQhsKfVvUxmjssxp11STu-tiUGbt7513pnXA/exec";
@@ -340,7 +340,7 @@ function api(action,payload){
 }
 
 function laporanTeks(e){
-  return ["=== LAPORAN RALAT ATLETTRACK ===",
+  return ["=== LAPORAN RALAT ATLETTRANING ===",
   "Masa      : "+capMY()+" (Waktu Malaysia)",
   "Kod Ralat : "+(e.kod||"UI-000"),
   "Mesej     : "+(e.message||""),
@@ -417,9 +417,11 @@ const bolehRekod=n=>!!U&&(isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JU
 const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
 const rekodAcara=n=>((DB&&DB.rekod&&DB.rekod[n])||[]);
 const kejohananAcara=n=>((DB&&DB.kejohanan)||[]).filter(k=>String(k.ACARA)===String(n));
-/* Rekod kejohanan ringkas: hanya dua peringkat — MSSD & MSSK */
-const PERINGKAT_KEJOHANAN=["MSSD","MSSK"];
-const namaPeringkat=k=>{ const t=String((k&&k["NAMA KEJOHANAN"])||"").toUpperCase(); return t.indexOf("MSSK")>=0?"MSSK":"MSSD"; };
+/* Rekod kejohanan ringkas: tiga peringkat — MSSD, MSSK & NO.3 MSSK */
+const PERINGKAT_KEJOHANAN=["MSSD","MSSK","NO.3 MSSK"];
+const namaPeringkat=k=>{ const t=String((k&&k["NAMA KEJOHANAN"])||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(/NO\.?\s*3/.test(t)) return "NO.3 MSSK";
+  return t.indexOf("MSSK")>=0?"MSSK":"MSSD"; };
 const kejohananKatSemua=(n,kat)=>kejohananAcara(n)
   .filter(k=>String(k.KATEGORI||"").toUpperCase()===String(kat||"").toUpperCase())
   .sort((a,b)=>PERINGKAT_KEJOHANAN.indexOf(namaPeringkat(a))-PERINGKAT_KEJOHANAN.indexOf(namaPeringkat(b)));
@@ -654,7 +656,7 @@ function topbar(title,back){
 
 /* ---------- 1. Sambungan Google Sheet ---------- */
 function skrinApi(){
-  app().innerHTML=`${head("AtletTrack","Sambung pangkalan data Google Sheet")}
+  app().innerHTML=`${head("AtletTraning","Sambung pangkalan data Google Sheet")}
   <div class="card">
     <span class="badge">LANGKAH PERTAMA</span>
     <h3 style="margin-top:10px">URL Google Apps Script</h3>
@@ -677,7 +679,7 @@ let modeAuth="login";
 let DRAF_DAFTAR={n:"",e:"",p:"",j:"",s:"",t:""};
 function skrinAuth(){
   const L=modeAuth==="login";
-  app().innerHTML=`${head("AtletTrack","Sistem Kehadiran & Rekod Latihan Atlet")}
+  app().innerHTML=`${head("AtletTraning","Sistem Kehadiran & Rekod Latihan Atlet")}
   <div class="card">
     <div class="tabs">
       <button class="${L?"on":""}" onclick="modeAuth='login';render()">Log Masuk</button>
@@ -1804,8 +1806,9 @@ function selTop3(r,unit,jenis){
 }
 /* Rekod kejohanan (per kategori) — untuk laporan */
 function selRK(rk,info){
-  if(!rk) return `<span style="color:#98a2b3">—</span>`;
-  return `<div><b style="color:#0b3b6f">🏆 ${esc(teksKejohanan(rk,info))}</b></div>`;
+  const senarai=Array.isArray(rk)?rk:(rk?[rk]:[]);
+  if(!senarai.length) return `<span style="color:#98a2b3">—</span>`;
+  return senarai.map(x=>`<div><b style="color:#0b3b6f">🏆 ${esc(teksKejohanan(x,info))}</b></div>`).join("");
 }
 
 function gayaLaporan(){
@@ -1852,7 +1855,7 @@ function bukaLaporan(tajuk,isi){
   <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
   <div class="kepala">
     <div class="logo">AT</div>
-    <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTrack • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
+    <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTraning • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
   </div>
   <div class="meta">
     <span><b>Sekolah:</b> ${esc((U&&U.sekolah)||"-")}</span>
@@ -1870,7 +1873,7 @@ function bukaLaporan(tajuk,isi){
     <div>Disemak oleh (Guru Penasihat)<br/><br/>Nama &amp; Tandatangan</div>
     <div>Disahkan oleh (Pengetua)<br/><br/>Cop &amp; Tandatangan</div>
   </div>
-  <div class="kaki"><span>AtletTrack — Laporan Rasmi Ranking Atlet</span><span>Dijana ${esc(tarikhCetak)}</span></div>
+  <div class="kaki"><span>AtletTraning — Laporan Rasmi Ranking Atlet</span><span>Dijana ${esc(tarikhCetak)}</span></div>
   </body></html>`;
   const w=window.open("","_blank");
   if(!w) return toast("Sila benarkan pop-up untuk mencetak laporan.");
@@ -1912,7 +1915,7 @@ function cetakLaporan(mod){
         const kat=semua[k]=semua[k]||{};
         (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
           acara:n,unit:info.UNIT||"",jenis:info.JENIS||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
-          rekodPeribadi:r.rekodPeribadi,top3:r.top3,rk:kejohananKat(n,k),info:info
+          rekodPeribadi:r.rekodPeribadi,top3:r.top3,rk:PERINGKAT_KEJOHANAN.map(pk=>kejohananPeringkat(n,k,pk)).filter(Boolean),info:info
         });
       });
     });
@@ -2091,7 +2094,7 @@ function vMatriks(){
         <div class="mx-logo">AT</div>
         <div class="mx-title">
           <h2>Matriks Penyertaan Peserta × Acara</h2>
-          <div class="mx-sub">AtletTrack • Laporan Rasmi Pusat Latihan</div>
+          <div class="mx-sub">AtletTraning • Laporan Rasmi Pusat Latihan</div>
         </div>
       </div>
       <div style="text-align:right">
@@ -2152,7 +2155,7 @@ function vMatriks(){
       <div class="lg"><b>${atlet.length}</b> peserta • <b>${acara.length}</b> acara</div>
     </div>
     <div class="mx-foot">
-      <div>Dokumen dijana oleh sistem AtletTrack</div>
+      <div>Dokumen dijana oleh sistem AtletTraning</div>
       <div>Disahkan oleh: ${esc((U&&U.nama)||"—")} • ${esc((U&&U.jawatan)||"")}</div>
     </div>`}
   </div>`;
