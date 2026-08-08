@@ -1849,18 +1849,42 @@ function gayaLaporan(){
   .tandatangan div{flex:1;border-top:1px solid #98a2b3;padding-top:6px;font-size:11px;color:#344054}
   .kaki{margin-top:22px;border-top:1px solid var(--line);padding-top:8px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
   .blok{page-break-inside:avoid}
+  body.landskap{max-width:none;padding:18px 22px}
+  body.landskap table{font-size:11px}
+  body.landskap th{font-size:10px;padding:5px 7px}
+  body.landskap td{font-size:11px;padding:5px 7px}
   @media print{ body{padding:12mm} @page{size:A4 portrait;margin:12mm} .noprint{display:none!important} }
+  @media print{ body.landskap{padding:8mm} }
   .noprint{position:fixed;top:10px;right:12px;display:flex;gap:8px}
   .noprint button{font:inherit;padding:8px 14px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
   .noprint button.g{background:#eef2f6;color:#1d2939}`;
 }
 
-function bukaLaporan(tajuk,isi){
+function bukaLaporan(tajuk,isi,orientasi){
   const kini=new Date();
   const tarikhCetak=capMasaMY(kini);
+  const landskap = String(orientasi||"").toLowerCase()==="landscape" || String(orientasi||"").toLowerCase()==="melintang";
   const html=`<!doctype html><html lang="ms"><head><meta charset="utf-8"/>
-  <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style></head><body>
-  <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
+  <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style>
+  <style id="gayaOrientasi">@media print{ @page{size:A4 ${landskap?"landscape":"portrait"};margin:10mm} }</style>
+  <script>
+    var ORIENTASI="${landskap?"landscape":"portrait"}";
+    function setOrientasi(o){
+      ORIENTASI=o;
+      document.getElementById("gayaOrientasi").textContent="@media print{ @page{size:A4 "+o+";margin:10mm} }";
+      var b=document.getElementById("btnOrientasi");
+      if(b) b.textContent = (o==="landscape") ? "Tukar ke Menegak" : "Tukar ke Melintang";
+      document.body.classList.toggle("landskap", o==="landscape");
+    }
+    function cetakSekarang(o){ if(o) setOrientasi(o); setTimeout(function(){ window.print(); }, 120); }
+  <\/script>
+  </head><body class="${landskap?"landskap":""}">
+  <div class="noprint">
+    <button onclick="cetakSekarang('landscape')">🖨 Simpan PDF (Melintang)</button>
+    <button class="g" onclick="cetakSekarang('portrait')">🖨 Menegak</button>
+    <button class="g" id="btnOrientasi" onclick="setOrientasi(ORIENTASI==='landscape'?'portrait':'landscape')">${landskap?"Tukar ke Menegak":"Tukar ke Melintang"}</button>
+    <button class="g" onclick="window.close()">Tutup</button>
+  </div>
   <div class="kepala">
     <div class="logo"><img src="./logo.png" alt="Logo Olahraga Pendidikan Khas" /></div>
     <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTraning • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
@@ -2105,7 +2129,7 @@ function cetakLaporanPingat(){
     ${senaraiBlok("Acara belum ada rekod latihan","#b42318",senaraiTiadaLatihan)}
     ${senaraiBlok("Acara tiada rekod NO.3 MSSK","#b54708",senaraiTiadaSasaran)}
   </div>`;
-  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding NO.3 MSSK)",ringkasan+isi);
+  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding NO.3 MSSK)",ringkasan+isi,"landscape");
 }
 
 
