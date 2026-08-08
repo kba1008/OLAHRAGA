@@ -7,6 +7,8 @@
 <meta name="description" content="Sistem kehadiran atlet dan rekod prestasi latihan pusat. Pangkalan data Google Sheet." />
 <meta name="theme-color" content="#4f2df5" />
 <link rel="manifest" href="./manifest.json" />
+<link rel="icon" type="image/png" href="./favicon.png" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <style>
 :root{
   --bg:#070b1e; --bg2:#0d1330; --card:rgba(255,255,255,.06); --line:rgba(255,255,255,.14);
@@ -96,7 +98,8 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .nav button.on{color:#fff}
 .nav .ni{display:block;font-size:19px}
 .hd{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.logo{width:44px;height:44px;border-radius:14px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 12px 24px -10px var(--p1)}
+.logo{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 12px 24px -10px var(--p1)}
+.logo img{width:100%;height:100%;object-fit:contain;display:block}
 .stat{text-align:center;padding:12px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line)}
 .stat b{display:block;font-size:22px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
@@ -154,7 +157,8 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .mx-title h2{font-size:20px;letter-spacing:.3px;color:#0b1533;margin:0}
 .mx-title .mx-sub{font-size:12px;color:#5b6b8f;font-weight:600;letter-spacing:.6px;text-transform:uppercase;margin-top:4px}
 .mx-brand{display:flex;align-items:center;gap:10px}
-.mx-logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6d28f9,#00c6ff 55%,#ff2d95);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px;letter-spacing:.5px}
+.mx-logo{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.mx-logo img{width:100%;height:100%;object-fit:contain;display:block}
 .mx-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .mx-tools input,.mx-tools select{background:#fff;color:#0b1533;border:1px solid #d9dfef;font-size:13px;padding:9px 12px;border-radius:10px}
 .mx-btn{background:#0b1533;color:#fff;border:0;padding:9px 14px;border-radius:10px;font-weight:700;font-size:12.5px;cursor:pointer;letter-spacing:.3px}
@@ -648,7 +652,7 @@ function navBar(){
   $("#nav").innerHTML=t.map(([k,i,l])=>`<button class="${VIEW===k?"on":""}" onclick="go('${k}')"><span class="ni">${i}</span>${l}</button>`).join("");
 }
 function head(title,sub){
-  return `<div class="hd"><div class="logo">AT</div><div><div class="big">${esc(title)}</div><div class="small">${esc(sub||"")}</div></div></div>`;
+  return `<div class="hd"><div class="logo"><img src="./logo.png" alt="Logo Olahraga Pendidikan Khas" /></div><div><div class="big">${esc(title)}</div><div class="small">${esc(sub||"")}</div></div></div>`;
 }
 function topbar(title,back){
   return `<div class="top"><button class="back" onclick="goBack()">←</button><div><div class="big">${esc(title)}</div></div></div>`;
@@ -1820,7 +1824,8 @@ function gayaLaporan(){
   *{box-sizing:border-box}
   body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:var(--ink);margin:0;padding:26px 30px;background:#fff;font-size:12px}
   .kepala{display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--brand);padding-bottom:14px;margin-bottom:6px}
-  .logo{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;letter-spacing:.5px}
+  .logo{width:56px;height:56px;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:contain;display:block}
   .kepala h1{margin:0;font-size:19px;letter-spacing:.3px;color:var(--brand)}
   .kepala .sub{margin-top:3px;color:var(--muted);font-size:11.5px}
   .meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
@@ -1857,7 +1862,7 @@ function bukaLaporan(tajuk,isi){
   <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style></head><body>
   <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
   <div class="kepala">
-    <div class="logo">AT</div>
+    <div class="logo"><img src="./logo.png" alt="Logo Olahraga Pendidikan Khas" /></div>
     <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTraning • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
   </div>
   <div class="meta">
@@ -2255,7 +2260,7 @@ function vMatriks(){
   <div class="mx-wrap">
     <div class="mx-head">
       <div class="mx-brand">
-        <div class="mx-logo">AT</div>
+        <div class="mx-logo"><img src="./logo.png" alt="Logo Olahraga Pendidikan Khas" /></div>
         <div class="mx-title">
           <h2>Matriks Penyertaan Peserta × Acara</h2>
           <div class="mx-sub">AtletTraning • Laporan Rasmi Pusat Latihan</div>
