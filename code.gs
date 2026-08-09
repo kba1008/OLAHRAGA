@@ -773,6 +773,8 @@ function pastikanKolumAcara() {
   sisipKolumAcara("IKON POS", function () { return ""; });
   /* Status pertandingan — acara yang digugurkan ditanda TIDAK. */
   sisipKolumAcara("DIPERTANDINGKAN", function () { return "YA"; });
+  /* Kategori yang digugurkan bagi acara ini (dipisah koma). */
+  sisipKolumAcara("KATEGORI DIGUGUR", function () { return ""; });
 }
 
 /* Tetapkan beberapa nilai kolum bagi satu baris acara. petaNilai = {KOLUM: nilai} */
@@ -819,6 +821,38 @@ function tetapkanDipertandingkan(p) {
   }
   var nilai = String(p.nilai || "YA").toUpperCase() === "TIDAK" ? "TIDAK" : "YA";
   return tetapNilaiAcara_(nama, { "DIPERTANDINGKAN": nilai });
+}
+
+/* Tag KATEGORI tertentu dalam sesuatu acara sebagai digugurkan daripada
+   pertandingan. Disimpan sebagai senarai dipisah koma pada kolum
+   "KATEGORI DIGUGUR" dalam sheet ACARA.
+   p = { acara, kategori, nilai: "YA" (dipertandingkan) | "TIDAK" (gugur) } */
+function tetapkanKategoriGugur(p) {
+  var nama = String(p.acara || "").trim();
+  var kat = String(p.kategori || "").toUpperCase().trim();
+  if (!nama) throw new Error("Acara diperlukan.");
+  if (!kat) throw new Error("Kategori diperlukan.");
+  if (!isAdmin(p.olehEmel) && !bolehRekod(nama, p.olehEmel)) {
+    throw new Error("Hanya Master Admin atau jurulatih acara ini boleh menukar status kategori.");
+  }
+  pastikanKolumAcara();
+  var k = kolumAcara(), s = k.sheet, lr = s.getLastRow(), col = k.idx["KATEGORI DIGUGUR"];
+  if (!col) throw new Error("Kolum KATEGORI DIGUGUR tidak dijumpai.");
+  var gugur = String(p.nilai || "TIDAK").toUpperCase() === "TIDAK";
+  for (var i = 2; i <= lr; i++) {
+    if (String(s.getRange(i, 1).getValue()).toUpperCase().trim() === nama.toUpperCase()) {
+      var senarai = String(s.getRange(i, col).getValue() || "")
+        .split(",").map(function (x) { return String(x).toUpperCase().trim(); })
+        .filter(function (x) { return x; });
+      var ada = senarai.indexOf(kat) >= 0;
+      if (gugur && !ada) senarai.push(kat);
+      if (!gugur && ada) senarai = senarai.filter(function (x) { return x !== kat; });
+      var teks = senarai.join(",");
+      s.getRange(i, col).setValue(teks);
+      return { ok: true, senarai: teks };
+    }
+  }
+  throw new Error("Acara tidak dijumpai.");
 }
 
 /* Susunan acara — MASTER ADMIN sahaja (drag & drop pada app). */
@@ -977,6 +1011,7 @@ var TINDAKAN = {
   tetapkanIkonAcara: tetapkanIkonAcara,
   muatNaikIkonAcara: muatNaikIkonAcara,
   tetapkanDipertandingkan: tetapkanDipertandingkan,
+  tetapkanKategoriGugur: tetapkanKategoriGugur,
   rekodKejohanan: simpanRekodKejohanan,
   padamRekodKejohanan: padamRekodKejohanan
 };
