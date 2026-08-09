@@ -1,8 +1,8 @@
 /* Service Worker - AtletTraning PWA
    Cache hanya untuk fail aplikasi (shell). SEMUA DATA sentiasa diambil
    terus (network only) daripada Google Sheet melalui Apps Script. */
-const CACHE="atlettraning-v35-fix-db";
-const SHELL = ["./", "./index.html", "./manifest.json", "./logo.png", "./logo-192.png", "./logo-512.png", "./apple-touch-icon.png", "./favicon.png"];
+const CACHE = "atlettraning-v32";
+const SHELL = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
