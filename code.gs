@@ -767,6 +767,58 @@ function pastikanKolumAcara() {
     return relay ? "BERPASUKAN" : "INDIVIDU";
   });
   sisipKolumAcara("SUSUNAN", function (nm, i) { return i + 1; });
+  /* Ikon acara (teks / gambar) — hanya Master Admin boleh ubah. */
+  sisipKolumAcara("IKON", function (nm) { return String(nm || "").toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 3); });
+  sisipKolumAcara("IKON URL", function () { return ""; });
+  sisipKolumAcara("IKON POS", function () { return ""; });
+  /* Status pertandingan — acara yang digugurkan ditanda TIDAK. */
+  sisipKolumAcara("DIPERTANDINGKAN", function () { return "YA"; });
+}
+
+/* Tetapkan beberapa nilai kolum bagi satu baris acara. petaNilai = {KOLUM: nilai} */
+function tetapNilaiAcara_(nama, petaNilai) {
+  pastikanKolumAcara();
+  var k = kolumAcara(), s = k.sheet, lr = s.getLastRow();
+  var cari = String(nama || "").toUpperCase().trim();
+  if (!cari) throw new Error("Acara diperlukan.");
+  for (var i = 2; i <= lr; i++) {
+    if (String(s.getRange(i, 1).getValue()).toUpperCase().trim() === cari) {
+      Object.keys(petaNilai).forEach(function (kol) {
+        var c = k.idx[kol];
+        if (c) s.getRange(i, c).setValue(petaNilai[kol]);
+      });
+      return { ok: true };
+    }
+  }
+  throw new Error("Acara tidak dijumpai.");
+}
+
+/* Ikon acara — MASTER ADMIN sahaja (teks atau gambar yang dimuat naik). */
+function tetapkanIkonAcara(p) {
+  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh mengubah ikon acara.");
+  var nama = String(p.acara || "").trim();
+  var teks = String(p.ikon || "").toUpperCase().trim().substring(0, 4);
+  var url = normalGambar(p.ikonUrl || "");
+  var pos = String(p.ikonPos || "").trim(); /* format: "x%|y%|zoom" */
+  return tetapNilaiAcara_(nama, { "IKON": teks, "IKON URL": url, "IKON POS": pos });
+}
+
+/* Muat naik gambar ikon acara — MASTER ADMIN sahaja. */
+function muatNaikIkonAcara(p) {
+  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh memuat naik ikon acara.");
+  return muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: "IKON_" + String(p.acara || "ACARA").replace(/[^A-Za-z0-9]/g, "_") });
+}
+
+/* Tag acara sebagai TIDAK DIPERTANDINGKAN (digugurkan) — Master/Sub Admin
+   atau jurulatih yang dilantik bagi acara berkenaan. */
+function tetapkanDipertandingkan(p) {
+  var nama = String(p.acara || "").trim();
+  if (!nama) throw new Error("Acara diperlukan.");
+  if (!isAdmin(p.olehEmel) && !bolehRekod(nama, p.olehEmel)) {
+    throw new Error("Hanya Master Admin atau jurulatih acara ini boleh menukar status pertandingan.");
+  }
+  var nilai = String(p.nilai || "YA").toUpperCase() === "TIDAK" ? "TIDAK" : "YA";
+  return tetapNilaiAcara_(nama, { "DIPERTANDINGKAN": nilai });
 }
 
 /* Susunan acara — MASTER ADMIN sahaja (drag & drop pada app). */
@@ -820,7 +872,17 @@ function tambahAcara(p) {
   if (sedia.some(function (a) { return String(a["ACARA"]).toUpperCase() === nama; })) throw new Error("Acara sudah wujud.");
   var maxSusun = 0;
   sedia.forEach(function (a) { var n = Number(a["SUSUNAN"] || 0); if (n > maxSusun) maxSusun = n; });
-  s.appendRow([nama, p.jenis || "MASA", p.unit || "saat", (p.mod || "INDIVIDU"), maxSusun + 1, "YA"]);
+  /* Tulis ikut kepala kolum supaya kekal betul walaupun ada kolum tambahan. */
+  var k = kolumAcara();
+  var nilai = {
+    "ACARA": nama, "JENIS": p.jenis || "MASA", "UNIT": p.unit || "saat",
+    "MOD": p.mod || "INDIVIDU", "SUSUNAN": maxSusun + 1,
+    "IKON": nama.replace(/[^A-Z0-9]/g, "").substring(0, 3),
+    "IKON URL": "", "IKON POS": "", "DIPERTANDINGKAN": "YA", "AKTIF": "YA"
+  };
+  var baris = [];
+  for (var c = 0; c < k.head.length; c++) baris.push(nilai.hasOwnProperty(k.head[c]) ? nilai[k.head[c]] : "");
+  s.appendRow(baris);
   sheetRekod(nama);
   /* Jurulatih yang menambah acara automatik dilantik sebagai jurulatih acara itu. */
   if (!isAdmin(p.olehEmel)) {
@@ -912,6 +974,9 @@ var TINDAKAN = {
   tambahAcara: tambahAcara,
   padamAcara: padamAcara,
   susunAcara: susunAcara,
+  tetapkanIkonAcara: tetapkanIkonAcara,
+  muatNaikIkonAcara: muatNaikIkonAcara,
+  tetapkanDipertandingkan: tetapkanDipertandingkan,
   rekodKejohanan: simpanRekodKejohanan,
   padamRekodKejohanan: padamRekodKejohanan
 };

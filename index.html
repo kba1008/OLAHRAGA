@@ -87,6 +87,13 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .back{background:rgba(255,255,255,.09);border:1px solid var(--line);color:#fff;border-radius:12px;padding:8px 12px;font-weight:800;cursor:pointer}
 .rank{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;background:var(--grad);box-shadow:0 8px 18px -10px var(--p2)}
+.rank{font-size:13px;letter-spacing:.3px;overflow:hidden;flex:0 0 auto}
+.rank.ikonImg{padding:0}
+.rank.ikonImg img{width:100%;height:100%;object-fit:cover;display:block}
+.tagGugur{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.4px;background:rgba(255,77,109,.18);border:1px solid rgba(255,77,109,.5);color:#ff8fa3}
+.item.gugur{opacity:.72}
+.ikonPrev{width:96px;height:96px;border-radius:22px;overflow:hidden;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:26px;margin:8px auto}
+.ikonPrev img{width:100%;height:100%;object-fit:cover;display:block}
 .g1{background:linear-gradient(135deg,#ffd700,#ff9500)}
 .g2{background:linear-gradient(135deg,#dfe7f5,#9aa9c4)}
 .g3{background:linear-gradient(135deg,#d9822b,#8a4b12)}
@@ -441,8 +448,50 @@ const acaraList=()=>((DB&&DB.acara)||[]).filter(a=>String(a.AKTIF||"YA").toUpper
   .map((a,i)=>({a,i,s:Number(a.SUSUNAN||0)||9999}))
   .sort((x,y)=>x.s-y.s||x.i-y.i).map(x=>x.a);
 const acaraInfo=n=>acaraList().find(a=>a.ACARA===n)||{JENIS:"MASA",UNIT:"saat"};
+/* ---------- Acara pecut: wajib dalam bentuk SAAT sahaja ----------
+   100M, 200M, 400M dan 4x100M — semua nilai dipapar & disimpan sebagai saat
+   (cth 1:15.45 auto tukar kepada 75.45 saat, tidak sekali dipapar m:ss).  */
+const labelKeputusan=info=>info&&info.JENIS==="MASA"?(isSaatSahaja(info.ACARA)?"masa — saat sahaja":"masa — saat atau minit"):"meter";
+const phKeputusan=info=>info&&info.JENIS==="MASA"?(isSaatSahaja(info.ACARA)?"Cth: 12.45 (saat sahaja — 1:12.45 auto tukar kepada 72.45)":"Cth: 15.45 (saat) atau 1:15.45 / 1.15.45 (1 min 15.45 saat)"):"Cth: 4.63";
+function isSaatSahaja(nama){
+  const t=String(nama||"").toUpperCase().replace(/\s+/g,"");
+  return /^(100M?|200M?|400M?)$/.test(t) || /^4X100M?$/.test(t);
+}
 const atletById=id=>((DB&&DB.atlet)||[]).find(a=>String(a.ID)===String(id));
 const jurulatihAcara=n=>((DB&&DB.jurulatih)||[]).filter(j=>j.ACARA===n);
+/* ---------- Status pertandingan acara ---------- */
+const acaraRow=n=>((DB&&DB.acara)||[]).find(x=>String(x.ACARA)===String(n))||null;
+const dipertandingkan=n=>String((acaraRow(n)&&acaraRow(n).DIPERTANDINGKAN)||"YA").toUpperCase()!=="TIDAK";
+/* Senarai acara yang benar-benar dipertandingkan (untuk analisis & ranking) */
+const acaraDipertanding=()=>acaraList().filter(a=>dipertandingkan(a.ACARA));
+const acaraDigugur=()=>acaraList().filter(a=>!dipertandingkan(a.ACARA));
+const LABEL_GUGUR="TIDAK DIPERTANDINGKAN";
+const tagGugur=n=>dipertandingkan(n)?"":`<span class="tagGugur">🚫 ${LABEL_GUGUR}</span>`;
+/* Label untuk laporan bercetak (dokumen putih) */
+const lblGugurCetak=n=>dipertandingkan(n)?"":` <span style="font-size:10px;font-weight:800;color:#b42318;border:1px solid #f3b1a8;background:#fef3f2;border-radius:999px;padding:1px 7px;white-space:nowrap">🚫 ${LABEL_GUGUR}</span>`;
+/* Nota ringkas senarai acara digugurkan — disisip pada setiap laporan */
+function notaAcaraGugur(){
+  const g=acaraDigugur();
+  if(!g.length) return "";
+  return `<div class="blok"><h2 class="acara">ACARA YANG TIDAK DIPERTANDINGKAN</h2>
+  <div style="font-size:12px;padding:6px 0">Acara berikut telah digugurkan daripada pertandingan. Rekod latihan bagi acara ini <b>tidak wajib</b> diisi dan tidak diambil kira dalam analisis harapan pingat:</div>
+  <table><thead><tr><th>#</th><th>Acara</th><th>Jenis</th><th>Status</th></tr></thead><tbody>
+  ${g.map((a,i)=>`<tr><td class="no">${i+1}</td><td>${esc(a.ACARA)}</td><td>${esc(a.JENIS==="MASA"?"Masa":"Jarak")}</td><td>${LABEL_GUGUR}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+/* Boleh tukar status: Master/Sub Admin atau jurulatih acara berkenaan */
+const bolehTukarStatus=n=>bolehRekod(n);
+/* ---------- Ikon acara (teks atau gambar — Master Admin sahaja) ---------- */
+function ikonPos(a){ const p=String((a&&a["IKON POS"])||"").split("|");
+  return {x:p[0]||"50%",y:p[1]||"50%",z:Number(p[2]||100)||100}; }
+function ikonAcaraHtml(a,kelas=""){
+  const n=String((a&&a.ACARA)||"");
+  const url=String((a&&a["IKON URL"])||"").trim();
+  const teks=(String((a&&a.IKON)||"").trim()||n.replace(/[^A-Za-z0-9]/g,"").slice(0,3)).toUpperCase();
+  if(url){ const p=ikonPos(a);
+    return `<div class="rank ikonImg ${kelas}"><img src="${esc(url)}" alt="${esc(n)}" style="object-position:${esc(p.x)} ${esc(p.y)};transform:scale(${p.z/100})"/></div>`; }
+  return `<div class="rank ${kelas}">${esc(teks.slice(0,4))}</div>`;
+}
 const bolehRekod=n=>!!U&&(isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JURULATIH"]).toLowerCase()===String((U&&U.emel)||"").toLowerCase()));
 const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
 const rekodAcara=n=>((DB&&DB.rekod&&DB.rekod[n])||[]);
@@ -467,7 +516,10 @@ function kejohananKat(n,kat){
 function nilaiRingkas(rk,info){
   const x=Number(rk&&rk.NILAI);
   if(!isFinite(x)||!(x>0)) return String((rk&&rk.KEPUTUSAN)||"-");
-  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?"s":"m");
+  if((info&&info.JENIS)==="MASA"){
+    const ss=isSaatSahaja(info&&info.ACARA);
+    return fmtSaat(x,ss)+(ss||x<60?"s":"m");
+  }
   return x.toFixed(2)+"m";
 }
 const teksKejohanan=(rk,info)=>`${namaPeringkat(rk)} : ${nilaiRingkas(rk,info)}${rk.TAHUN?" / "+rk.TAHUN:""}`;
@@ -507,9 +559,9 @@ function huraiMasa(teks){
   if(bhg.length===2) return Number(bhg[0])*60+Number(bhg[1]);
   return Number(bhg[0])*3600+Number(bhg[1])*60+Number(bhg[2]);
 }
-function fmtSaat(v){
+function fmtSaat(v,saatSahaja){
   const x=Number(v); if(!isFinite(x)) return "-";
-  if(x<60) return x.toFixed(2);
+  if(saatSahaja||x<60) return x.toFixed(2);
   const j=Math.floor(x/3600), b=x-j*3600;
   const m=Math.floor(b/60), s=b-m*60;
   const ss=(s<10?"0":"")+s.toFixed(2);
@@ -518,10 +570,13 @@ function fmtSaat(v){
 /* Nilai + unit yang betul mengikut jenis acara */
 function fmtNilai(v,info){
   const x=Number(v); if(v==null||!isFinite(x)) return "-";
-  if((info&&info.JENIS)==="MASA") return fmtSaat(x)+(x<60?" saat":" min");
+  if((info&&info.JENIS)==="MASA"){
+    const ss=isSaatSahaja(info&&info.ACARA);
+    return fmtSaat(x,ss)+(ss||x<60?" saat":" min");
+  }
   return x.toFixed(2)+((info&&info.UNIT)?" "+info.UNIT:"");
 }
-function fmtNilaiUnit(v,jenis,unit){ return fmtNilai(v,{JENIS:jenis,UNIT:unit}); }
+function fmtNilaiUnit(v,jenis,unit,nama){ return fmtNilai(v,{JENIS:jenis,UNIT:unit,ACARA:nama}); }
 
 
 /* ---------- Format tarikh & masa ----------
@@ -949,15 +1004,18 @@ function vAcara(){
   ${bolehTambahAcara()?`<div class="card"><button class="btn sm" onclick="formAcara()">+ Tambah Acara</button>
     ${susunBoleh?`<div class="small" style="margin-top:8px">Seret ikon ⠿ untuk menyusun semula kedudukan acara. Susunan disimpan automatik.</div>`:`<div class="small" style="margin-top:8px">Acara yang anda tambah akan melantik anda sebagai jurulatih acara itu secara automatik.</div>`}</div>`:""}
   <div id="acaraWrap">${acaraList().map(a=>{
-    const n=a.ACARA, jl=jurulatihAcara(n), boleh=bolehRekod(n);
-    return `<div class="item" data-acara="${esc(n)}" ${susunBoleh?'draggable="true"':""} onclick="go('acaraDetail',{acara:'${esc(n)}'})">
+    const n=a.ACARA, jl=jurulatihAcara(n), boleh=bolehRekod(n), tanding=dipertandingkan(n);
+    return `<div class="item ${tanding?"":"gugur"}" data-acara="${esc(n)}" ${susunBoleh?'draggable="true"':""} onclick="go('acaraDetail',{acara:'${esc(n)}'})">
       ${susunBoleh?`<div class="dragHandle" title="Seret untuk susun" onclick="event.stopPropagation()">⠿</div>`:""}
-      <div class="rank">${esc(String(n).slice(0,3))}</div>
-      <div style="flex:1"><div class="nm">${esc(n)}</div>
+      ${ikonAcaraHtml(a)}
+      <div style="flex:1"><div class="nm">${esc(n)} ${tagGugur(n)}</div>
         <div class="sub">${penyertaan(n).length} atlet • ${rekodAcara(n).length} rekod • ${a.JENIS==="MASA"?"Masa (saat / minit)":"Jarak (meter)"}</div>
+        ${tanding?"":`<div class="sub">Acara digugurkan — rekod latihan tidak wajib diisi.</div>`}
         <div class="sub jl-acara">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
       <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
+      ${isMaster()?`<div><button class="btn sm ghost" style="margin-top:8px" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')">🎨 Ikon</button></div>`:""}
+      ${bolehTukarStatus(n)?`<div><button class="btn sm ghost" style="margin-top:8px" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')">${tanding?"🚫 Tanda Digugurkan":"✅ Tanda Dipertandingkan"}</button></div>`:""}
       ${susunBoleh?`<div><button class="btn sm bad" style="margin-top:8px" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button></div>`:""}</div>
     </div>`;
   }).join("")}</div>`;
@@ -1002,6 +1060,83 @@ async function padamAcara(n){
     render(); toast("Acara dipadam");
   }catch(e){ toastRalat(e) }
 }
+/* ---------- Ikon Acara — MASTER ADMIN sahaja ---------- */
+let IKON_EDIT=null; /* {acara, url, teks, x, y, z} */
+function formIkonAcara(n){
+  if(!isMaster()) return toast("Hanya Master Admin boleh mengubah ikon acara.");
+  const a=acaraRow(n); if(!a) return toast("Acara tidak dijumpai");
+  const p=ikonPos(a);
+  IKON_EDIT={acara:n,url:String(a["IKON URL"]||"").trim(),teks:String(a.IKON||"").toUpperCase().trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3),
+             x:parseFloat(p.x)||50,y:parseFloat(p.y)||50,z:p.z};
+  overlay(`<div class="big">Ikon Acara</div>
+  <div class="small">${esc(n)}</div>
+  <div id="ikonPrev"></div>
+  <label>Ikon Teks (maksimum 4 aksara)</label>
+  <input id="ikTeks" maxlength="4" value="${esc(IKON_EDIT.teks)}" oninput="IKON_EDIT.teks=this.value.toUpperCase();lukisIkonPrev()"/>
+  <label>Atau muat naik gambar ikon</label>
+  <input id="ikFail" type="file" accept="image/*" onchange="ikonPilihFail(this)"/>
+  <div id="ikLaras" class="${IKON_EDIT.url?"":"hide"}">
+    <label>Kedudukan mendatar (kiri ⇄ kanan)</label>
+    <input id="ikX" type="range" min="0" max="100" value="${IKON_EDIT.x}" oninput="IKON_EDIT.x=+this.value;lukisIkonPrev()"/>
+    <label>Kedudukan menegak (atas ⇅ bawah)</label>
+    <input id="ikY" type="range" min="0" max="100" value="${IKON_EDIT.y}" oninput="IKON_EDIT.y=+this.value;lukisIkonPrev()"/>
+    <label>Zum gambar</label>
+    <input id="ikZ" type="range" min="100" max="300" value="${IKON_EDIT.z}" oninput="IKON_EDIT.z=+this.value;lukisIkonPrev()"/>
+    <button class="btn sm ghost" onclick="IKON_EDIT.url='';document.getElementById('ikLaras').classList.add('hide');lukisIkonPrev()">Buang gambar (guna teks)</button>
+  </div>
+  <button class="btn" id="btnIkon" onclick="simpanIkonAcara()">Simpan Ikon</button>
+  <button class="btn ghost" onclick="tutup()">Batal</button>`);
+  lukisIkonPrev();
+}
+function lukisIkonPrev(){
+  const el=document.getElementById("ikonPrev"); if(!el||!IKON_EDIT) return;
+  el.innerHTML=IKON_EDIT.url
+    ? `<div class="ikonPrev"><img src="${esc(IKON_EDIT.url)}" style="object-position:${IKON_EDIT.x}% ${IKON_EDIT.y}%;transform:scale(${IKON_EDIT.z/100})"/></div>`
+    : `<div class="ikonPrev">${esc(String(IKON_EDIT.teks||"").slice(0,4))}</div>`;
+}
+async function ikonPilihFail(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  try{
+    syncShow("Memuat naik ikon");
+    const dataUrl=await fileToDataUrl(f);
+    const r=await api("muatNaikIkonAcara",{acara:IKON_EDIT.acara,gambarBase64:dataUrl,...who()});
+    IKON_EDIT.url=r.url; IKON_EDIT.x=50; IKON_EDIT.y=50; IKON_EDIT.z=100;
+    const w=document.getElementById("ikLaras"); if(w) w.classList.remove("hide");
+    ["ikX","ikY"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=50;});
+    const z=document.getElementById("ikZ"); if(z) z.value=100;
+    lukisIkonPrev(); toast("Gambar ikon dimuat naik");
+  }catch(e){ toastRalat(e); }
+  finally{ syncHide(); }
+}
+async function simpanIkonAcara(){
+  if(!IKON_EDIT) return;
+  const btn=$("#btnIkon"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  const p={acara:IKON_EDIT.acara,ikon:String(IKON_EDIT.teks||"").toUpperCase().slice(0,4),
+           ikonUrl:IKON_EDIT.url||"",ikonPos:IKON_EDIT.url?`${IKON_EDIT.x}%|${IKON_EDIT.y}%|${IKON_EDIT.z}`:""};
+  try{
+    await api("tetapkanIkonAcara",{...p,...who()});
+    const a=acaraRow(p.acara);
+    if(a){ a.IKON=p.ikon; a["IKON URL"]=p.ikonUrl; a["IKON POS"]=p.ikonPos; }
+    tutup(); render(); toast("Ikon acara dikemas kini");
+  }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Ikon";} }
+}
+
+/* ---------- Tag acara digugurkan / dipertandingkan ---------- */
+async function tukarStatusAcara(n){
+  if(!bolehTukarStatus(n)) return toast("Hanya Master Admin atau jurulatih acara ini boleh menukar status.");
+  const tanding=dipertandingkan(n);
+  const nilai=tanding?"TIDAK":"YA";
+  const msg=tanding
+    ? `Tandakan acara "${n}" sebagai TIDAK DIPERTANDINGKAN?\n\nAcara ini akan dipaparkan sebagai digugurkan dalam semua laporan dan rekod latihannya tidak lagi wajib diisi.`
+    : `Tandakan semula acara "${n}" sebagai DIPERTANDINGKAN?`;
+  if(!confirm(msg)) return;
+  try{
+    await api("tetapkanDipertandingkan",{acara:n,nilai,...who()});
+    const a=acaraRow(n); if(a) a.DIPERTANDINGKAN=nilai;
+    render(); toast(tanding?"Acara ditanda tidak dipertandingkan":"Acara ditanda dipertandingkan");
+  }catch(e){ toastRalat(e); }
+}
+
 function formAcara(){
   overlay(`<div class="big">Tambah Acara</div>
   <label>Nama Acara</label><input id="an" placeholder="Cth: 4X100 M"/>
@@ -1068,6 +1203,9 @@ function vAcaraDetail(){
   app().innerHTML=`${topbar(n,"acara")}
   <div class="card">
     <span class="badge">${info.JENIS==="MASA"?"MASA (saat / minit — cth 1:15.45)":"JARAK (METER)"}</span>
+    ${tagGugur(n)}
+    ${dipertandingkan(n)?"":`<div class="small" style="margin-top:8px">⚠️ Acara ini telah digugurkan daripada pertandingan. Rekod latihan <b>tidak wajib</b> diisi dan acara ini ditandakan "${LABEL_GUGUR}" dalam semua laporan.</div>`}
+    ${bolehTukarStatus(n)?`<div style="margin-top:8px"><button class="btn sm ghost" onclick="tukarStatusAcara('${esc(n)}')">${dipertandingkan(n)?"🚫 Tanda Digugurkan":"✅ Tanda Dipertandingkan"}</button></div>`:""}
     <div class="small" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>Jurulatih dilantik (${jl.length}/10)</span>
       <button class="btn sm ghost" onclick="(function(el){var w=document.getElementById('jlListWrap');var show=w.style.display==='none';w.style.display=show?'block':'none';el.textContent=show?'Sembunyi senarai':'Papar senarai';})(this)">Papar senarai</button>
@@ -1130,7 +1268,7 @@ function formKejohanan(n,kat,id,peringkat){
   <datalist id="kkList">${katSedia.map(k=>`<option value="${esc(k)}"></option>`).join("")}</datalist>
   <label>Peringkat</label>
   <select id="kn">${PERINGKAT_KEJOHANAN.map(p=>`<option value="${p}" ${p===pkt?"selected":""}>${p}</option>`).join("")}</select>
-  <label>Rekod (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <label>Rekod (${esc(labelKeputusan(info))})</label>
   <input id="kv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 13.30 atau 1:15.45":"Cth: 5.20"}" value="${esc(sedia&&sedia.NILAI?String(sedia.NILAI):"")}"/>
   <label>Tahun</label><input id="kt" inputmode="numeric" placeholder="Cth: 2023" value="${esc(sedia?sedia.TAHUN:"")}"/>
   <button class="btn" id="btnK" onclick="simpanKejohanan('${esc(n)}','${esc(sedia?sedia.ID:"")}')">Simpan</button>
@@ -1362,7 +1500,7 @@ function formRekod(n,id){
   overlay(`<div class="big">Rekod Latihan</div>
   <div class="small">${esc(n)} • ${esc(a["NAMA PENUH"]||"")}</div>
   <label>Tarikh</label><input type="date" id="rt" value="${today()}"/>
-  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label><input id="rv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 15.45 (saat) atau 1:15.45 / 1.15.45 (1 min 15.45 saat)":"Cth: 4.63"}"/>
+  <label>Keputusan (${esc(labelKeputusan(info))})</label><input id="rv" inputmode="decimal" placeholder="${phKeputusan(info)}"/>
   ${info.JENIS==="MASA"?`<div class="small">Acara jarak jauh: tulis dalam bentuk minit — <b>1:15.45</b> atau <b>1.15.45</b> bermaksud 1 minit 15.45 saat. Jangan tukar kepada saat.</div>`:""}
   <label>Catatan</label><textarea id="rc" rows="2" placeholder="Cth: pusingan ke-2"></textarea>
   <button class="btn" id="btnR" onclick="simpanR('${esc(n)}','${esc(id)}')">Simpan Rekod</button>
@@ -1410,7 +1548,7 @@ function formRekodRelay(n){
   overlay(`<div class="big">Rekod Berpasukan — ${esc(n)}</div>
   <div class="small">Pilih semua atlet dalam pasukan. Satu keputusan akan dikongsi bersama.</div>
   <label style="margin-top:8px">Tarikh</label><input type="date" id="rrt" value="${t}"/>
-  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <label>Keputusan (${esc(labelKeputusan(info))})</label>
   <input id="rrv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 45.12 atau 1:45.12":"Cth: 4.63"}"/>
   ${info.JENIS==="MASA"?`<div class="small">Format: <b>45.12</b> (saat) atau <b>1:45.12</b> / <b>1.45.12</b> (1 minit 45.12 saat).</div>`:""}
   <label>Catatan</label><textarea id="rrc" rows="2" placeholder="Cth: pusingan akhir, susunan larian"></textarea>
@@ -1465,7 +1603,7 @@ function formEditRekod(n,id){
   overlay(`<div class="big">Edit Rekod</div>
   <div class="small">${esc(n)} • ${esc(x["NAMA ATLET"])}</div>
   <label>Tarikh</label><input type="date" id="et" value="${esc(String(x.TARIKH).slice(0,10))}"/>
-  <label>Keputusan (${esc(info.JENIS==="MASA"?"masa — saat atau minit":"meter")})</label>
+  <label>Keputusan (${esc(labelKeputusan(info))})</label>
   <input id="ev" inputmode="decimal" value="${esc(x.KEPUTUSAN)}"/>
   ${info.JENIS==="MASA"?`<div class="small">Acara jarak jauh: tulis <b>1:15.45</b> atau <b>1.15.45</b> (1 minit 15.45 saat). Jangan tukar kepada saat.</div>`:""}
   <label>Catatan</label><textarea id="ec" rows="2">${esc(x.CATATAN||"")}</textarea>
@@ -1844,9 +1982,9 @@ function kiraRanking(namaAcara){
 /* Rekod peribadi kejohanan lepas — dipaparkan merah */
 function selRP(r){ return r.rekodPeribadi?`<span class="rp">${esc(r.rekodPeribadi)}</span>`:`<span style="color:#98a2b3">—</span>`; }
 /* 3 rekod terbaik sepanjang tempoh latihan */
-function selTop3(r,unit,jenis){
+function selTop3(r,unit,jenis,nama){
   if(!r.top3||!r.top3.length) return `<span style="color:#98a2b3">—</span>`;
-  return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${fmtNilaiUnit(t.nilai,jenis||(String(unit).toLowerCase()==="saat"?"MASA":"JARAK"),unit)}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
+  return `<div class="t3">`+r.top3.map((t,i)=>`${i+1}. <b>${fmtNilaiUnit(t.nilai,jenis||(String(unit).toLowerCase()==="saat"?"MASA":"JARAK"),unit,nama||r.acara)}</b>${t.tarikh?` <span class="d">(${esc(fmtTarikh(t.tarikh))})</span>`:""}`).join("<br/>")+`</div>`;
 }
 /* Rekod kejohanan (per kategori) — untuk laporan */
 function selRK(rk,info){
@@ -1933,7 +2071,8 @@ function cetakLaporan(mod){
     senaraiAcara.forEach(ac=>{
       const n=ac.ACARA, {info,ikutKat}=kiraRanking(n);
       const kats=Object.keys(ikutKat).sort();
-      isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span></h2>`;
+      isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span>${lblGugurCetak(n)}</h2>`;
+      if(!dipertandingkan(n)) isi+=`<div class="kosong">Acara ini telah digugurkan — ${LABEL_GUGUR}. Rekod latihan tidak wajib diisi.</div>`;
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
         const rkSemua=kejohananKatSemua(n,k).filter(x=>Number(x.NILAI)>0);
@@ -1941,13 +2080,13 @@ function cetakLaporan(mod){
         isi+=`<h3 class="kat">Kategori: ${esc(k)} — ${ikutKat[k].length} atlet${rkTxt}</h3>
         <table><thead><tr><th>#</th><th>Nama Atlet</th><th>Sekolah</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th></tr></thead><tbody>`;
         ikutKat[k].forEach(r=>{
-          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
+          isi+=`<tr class="${r.kedudukan===1?"emas":""}"><td class="no">${r.kedudukan}</td><td>${esc(r.nama)}</td><td>${esc(r.sekolah||"-")}</td><td class="num">${selRP(r)}</td><td>${selTop3(r,info.UNIT,info.JENIS,info.ACARA)}</td><td class="num">${fmtNilai(r.terbaik,info)}</td><td class="num">${r.n}</td></tr>`;
         });
         isi+=`</tbody></table>`;
       });
       isi+=`</div>`;
     });
-    return bukaLaporan("Laporan Ranking Mengikut Acara",isi);
+    return bukaLaporan("Laporan Ranking Mengikut Acara",isi+notaAcaraGugur());
   }
 
   /* mod === "atlet" : kekal tersusun mengikut kategori */
@@ -1958,7 +2097,7 @@ function cetakLaporan(mod){
       ikutKat[k].forEach(r=>{
         const kat=semua[k]=semua[k]||{};
         (kat[r.nama]=kat[r.nama]||{sekolah:r.sekolah,baris:[]}).baris.push({
-          acara:n,unit:info.UNIT||"",jenis:info.JENIS||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
+          acara:n,tanding:dipertandingkan(n),unit:info.UNIT||"",jenis:info.JENIS||"",terbaik:r.terbaik,n:r.n,kedudukan:r.kedudukan,jumlah:ikutKat[k].length,
           rekodPeribadi:r.rekodPeribadi,top3:r.top3,rk:PERINGKAT_KEJOHANAN.map(pk=>kejohananPeringkat(n,k,pk)).filter(Boolean),info:info
         });
       });
@@ -1974,13 +2113,13 @@ function cetakLaporan(mod){
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
       <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}${b.tanding?"":lblGugurCetak(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis,b.acara)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit,b.acara)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
     isi+=`</div>`;
   });
-  bukaLaporan("Laporan Ranking Mengikut Nama Atlet",isi);
+  bukaLaporan("Laporan Ranking Mengikut Nama Atlet",isi+notaAcaraGugur());
 }
 
 
@@ -2116,7 +2255,7 @@ function panelPingat(namaAcara){
 /* ===== PANEL HARAPAN PINGAT — ringkasan semua acara (paling atas dashboard) ===== */
 function kumpulHarapan(){
   const emas=[], podium=[], hampir=[];
-  acaraList().forEach(ac=>{
+  acaraDipertanding().forEach(ac=>{
     const n=ac.ACARA, a=analisisPingat(n), info=a.info;
     a.kategori.forEach(g=>{
       g.baris.forEach(b=>{
@@ -2206,7 +2345,8 @@ function cetakLaporanHarapan(){
     ringkasan
     + jadual("🥇 HARAPAN EMAS","#b45309",H.emas,"Rekod latihan sudah lebih baik daripada rekod MSSK — sasaran: kekalkan prestasi & tingkatkan kestabilan.")
     + jadual("🥈 HARAPAN PODIUM","#0f766e",H.podium,"Sudah melepasi rekod NO.3 MSSK — sasaran seterusnya: tembus rekod MSSK untuk emas.")
-    + jadual("🔸 HAMPIR PODIUM","#b54708",H.hampir,"Jurang ≤10% daripada rekod NO.3 MSSK — paling berbaloi diberi fokus latihan."));
+    + jadual("🔸 HAMPIR PODIUM","#b54708",H.hampir,"Jurang ≤10% daripada rekod NO.3 MSSK — paling berbaloi diberi fokus latihan.")
+    + notaAcaraGugur());
 }
 /* ========== LAPORAN PRESTASI SETIAP ATLET (ringkas & padat) ==========
    Setiap atlet → senarai acara yang disertai + taraf (harapan emas /
@@ -2214,7 +2354,7 @@ function cetakLaporanHarapan(){
    masih perlu diperbaiki untuk naik ke podium & emas + strategi ringkas. */
 function prestasiAtletSemua(){
   const peta={};
-  acaraList().forEach(ac=>{
+  acaraDipertanding().forEach(ac=>{
     const n=ac.ACARA, a=analisisPingat(n);
     a.kategori.forEach(g=>g.baris.forEach(b=>{
       const p=peta[b.id]=peta[b.id]||{id:String(b.id),nama:b.nama,sekolah:b.sekolah,kategori:g.kategori,acara:[]};
@@ -2315,12 +2455,12 @@ function cetakLaporanPrestasi(idAtlet){
         🎯 <b>Strategi Ketua Jurulatih:</b> ${strategiAtlet(p)}
       </div></div>`;
   });
-  bukaLaporan(idAtlet?`Laporan Prestasi Atlet — ${senarai[0].nama}`:"Laporan Prestasi Setiap Atlet (Analisis Harapan Pingat)",isi);
+  bukaLaporan(idAtlet?`Laporan Prestasi Atlet — ${senarai[0].nama}`:"Laporan Prestasi Setiap Atlet (Analisis Harapan Pingat)",isi+notaAcaraGugur());
 }
 /* Laporan boleh cetak — semua acara, disusun mengikut acara */
 function cetakLaporanPingat(){
-  const senarai=acaraList();
-  if(!senarai.length) return toast("Tiada acara untuk dilaporkan.");
+  const senarai=acaraDipertanding();
+  if(!senarai.length) return toast("Tiada acara dipertandingkan untuk dilaporkan.");
   let isi="", ada=0;
   /* Ringkasan keseluruhan */
   const S={acara:0,unit:0,atlet:0,emas:0,podium:0,potensi:0,jauh:0,tiadaLatihan:0,tiadaSasaran:0,
@@ -2391,7 +2531,7 @@ function cetakLaporanPingat(){
     ${senaraiBlok("Acara belum ada rekod latihan","#b42318",senaraiTiadaLatihan)}
     ${senaraiBlok("Acara tiada rekod kejohanan","#b54708",senaraiTiadaSasaran)}
   </div>`;
-  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding MSSK & NO.3 MSSK)",ringkasan+isi);
+  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding MSSK & NO.3 MSSK)",ringkasan+isi+notaAcaraGugur());
 }
 
 
