@@ -126,7 +126,13 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
   .item .right .sub{margin-top:0}
   .item .right .sub:before{content:"• ";opacity:.55}
   .item .right .sub:first-of-type:before{content:""}
+  .item .acara-right{display:block}
+  .item .acara-right .stat-badge{margin-bottom:8px}
+  .item .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .item .acts .btn.sm{width:100%;margin-top:0;padding:10px 8px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center;line-height:1.2}
 }
+.acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:8px}
+.acara-right .stat-badge{display:block}
 .sp{width:34px;height:34px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--p2);border-radius:50%;animation:s 1s linear infinite;margin:24px auto}
 @keyframes s{to{transform:rotate(360deg)}}
 .ov{position:fixed;inset:0;background:rgba(4,7,20,.82);display:flex;align-items:flex-end;justify-content:center;z-index:80;backdrop-filter:blur(6px)}
@@ -223,7 +229,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz3v_IHVHlCuipXoNRBe7pbKwxV4NyOfB3zTkG-R7IqrffDRQPqYi5LcswXRXoGADpHdw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxJTFjqZZhGzrKybRwNVSv3z-nu2SR-WhzLkEiLWPkdWp5-CDUV9G4cWJUJ5BfMTEEGtA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1046,10 +1052,12 @@ function vAcara(){
         ${tanding?"":`<div class="sub">Acara digugurkan — rekod latihan tidak wajib diisi.</div>`}
         <div class="sub jl-acara">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
-      <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
-      ${isMaster()?`<div><button class="btn sm ghost" style="margin-top:8px" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')">🎨 Ikon</button></div>`:""}
-      ${bolehTukarStatus(n)?`<div><button class="btn sm ghost" style="margin-top:8px" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')">${tanding?"🚫 Tanda Digugurkan":"✅ Tanda Dipertandingkan"}</button></div>`:""}
-      ${susunBoleh?`<div><button class="btn sm bad" style="margin-top:8px" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button></div>`:""}</div>
+      <div class="right small acara-right"><div class="stat-badge">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}</div>
+      <div class="acts">
+      ${isMaster()?`<button class="btn sm ghost" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')">🎨 Ikon</button>`:""}
+      ${bolehTukarStatus(n)?`<button class="btn sm ghost" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')">${tanding?"🚫 Digugurkan":"✅ Dipertandingkan"}</button>`:""}
+      ${susunBoleh?`<button class="btn sm bad" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button>`:""}
+      </div></div>
     </div>`;
   }).join("")}</div>`;
   if(susunBoleh) pasangDragAcara();
