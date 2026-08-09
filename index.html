@@ -313,7 +313,7 @@ function apiJsonp(action,payload,timeoutMs){
       cleanup();
       const ms=Date.now()-mula;
       if(!r||typeof r!=="object") return rej(RalatDB("DB-005","Balasan tidak sah.","Balasan: "+String(r).slice(0,300),action));
-      if(r.ok){ logTambah("OK",`Aksi '${action}' berjaya (${ms}ms)`,""); return res(r.data); }f
+      if(r.ok){ logTambah("OK",`Aksi '${action}' berjaya (${ms}ms)`,""); return res(r.data); }
       const kod=r.kod||(/setup|sheet|lajur|column/i.test(r.error||"")?"DB-006":/authoriz|permission|kebenaran/i.test(r.error||"")?"DB-007":"DB-004");
       rej(RalatDB(kod,r.error||"Ralat tidak diketahui.","Aksi: "+action+" | "+JSON.stringify(r).slice(0,600),action));
     };

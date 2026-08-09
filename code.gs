@@ -65,8 +65,13 @@ var __SS_CACHE = null;
 function ss() {
   if (__SS_CACHE) return __SS_CACHE;
   var a = null;
-  try { a = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
-  if (!a && SHEET_ID) a = SpreadsheetApp.openById(SHEET_ID);
+  /* SHEET_ID ialah sumber rasmi. Buka ID ini dahulu supaya deployment tidak
+     tersambung kepada spreadsheet aktif yang salah. */
+  if (SHEET_ID) {
+    try { a = SpreadsheetApp.openById(SHEET_ID); }
+    catch (e) { throw new Error("Tidak dapat buka Google Sheet melalui SHEET_ID. Semak ID dan kebenaran akses. Butiran: " + e.message); }
+  }
+  if (!a) { try { a = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {} }
   if (!a) throw new Error("Tidak dapat buka Google Sheet. Semak SHEET_ID atau buka Apps Script dari sheet yang betul.");
   __SS_CACHE = a;
   return a;
