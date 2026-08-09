@@ -216,7 +216,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbww1Hf2MEdE5iwJmKvQiO4MSN_cOCDIexvKXGIBTVh5S9rPVYblEb3EQ0M5MtPlbEDAjA/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzU57Ujt-m28cQmWievmsjcR58NcOXjZv88DHVwYohmnLth0EcsJpBbR6LUiqXBuYzU7Q/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -314,7 +314,8 @@ function apiJsonp(action,payload,timeoutMs){
       rej(RalatDB(kod,r.error||"Ralat tidak diketahui.","Aksi: "+action+" | "+JSON.stringify(r).slice(0,600),action));
     };
     s.onerror=()=>{cleanup();rej(RalatDB("DB-003","Gagal menghubungi pangkalan data.","Aksi: "+action,action))};
-    s.src=API+(API.includes("?")?"&":"?")+"callback="+cb+"&payload="+encodeURIComponent(JSON.stringify({action,...(payload||{})}));
+    s.referrerPolicy="no-referrer";
+    s.src=API+(API.includes("?")?"&":"?")+"callback="+cb+"&_="+Date.now()+"&payload="+encodeURIComponent(JSON.stringify({action,...(payload||{})}));
     logTambah("HANTAR",`Aksi '${action}' dihantar`,"");
     document.body.appendChild(s);
   });
@@ -330,11 +331,40 @@ function apiPost(action,payload){
     })
     .catch(e=>{ if(e && e.kod) throw e; throw RalatDB("DB-003",String(e&&e.message||e),"",action); });
 }
+/* Fallback: sebahagian telefon/pelayar mudah alih menyekat <script> silang-domain
+   (JSONP). Guna fetch GET (CORS) sebagai cadangan sebelum POST. */
+function apiGetFetch(action,payload){
+  if(!API) return Promise.reject(RalatDB("DB-001","URL belum ditetapkan.","",action));
+  const url=API+(API.includes("?")?"&":"?")+"_="+Date.now()+"&payload="+encodeURIComponent(JSON.stringify({action,...(payload||{})}));
+  return fetch(url,{method:"GET",redirect:"follow",cache:"no-store",credentials:"omit"})
+    .then(r=>r.text())
+    .then(t=>{
+      let j=null;
+      try{ j=JSON.parse(t); }
+      catch(e){ const m=String(t).match(/^[^(]*\((\{[\s\S]*\})\)\s*;?\s*$/); if(m){ try{ j=JSON.parse(m[1]); }catch(e2){} } }
+      if(!j||typeof j!=="object") throw RalatDB("DB-005","Balasan tidak sah.","Balasan: "+String(t).slice(0,300),action);
+      if(j.ok){ logTambah("OK",`Aksi '${action}' berjaya (fetch)`,""); return j.data; }
+      throw RalatDB(j.kod||"DB-004",j.error||"Ralat tidak diketahui.",JSON.stringify(j).slice(0,600),action);
+    })
+    .catch(e=>{ if(e&&e.kod) throw e; throw RalatDB("DB-003",String(e&&e.message||e),"fetch GET",action); });
+}
 const AKSI_BACA={data:1,ping:1,login:1,daftar:1};
 function api(action,payload){
   // Data besar (base64) → POST supaya lebih laju & tanpa had URL
   const besar = payload && (payload.gambarBase64 || payload.dataBase64);
-  const p = besar ? apiPost(action,payload) : apiJsonp(action,payload);
+  const p = besar ? apiPost(action,payload) : apiJsonp(action,payload)
+    .catch(e=>{
+      // Telefon: JSONP kerap gagal (DB-003/DB-002). Cuba fetch GET, kemudian POST.
+      if(e&&(e.kod==="DB-003"||e.kod==="DB-002"||e.kod==="DB-005")){
+        logTambah("INFO","JSONP gagal — cuba fetch GET","Aksi: "+action);
+        return apiGetFetch(action,payload).catch(e2=>{
+          if(e2&&e2.kod&&e2.kod!=="DB-003"&&e2.kod!=="DB-005") throw e2;
+          logTambah("INFO","fetch GET gagal — cuba POST","Aksi: "+action);
+          return apiPost(action,payload);
+        });
+      }
+      throw e;
+    });
   // Setiap penulisan → segerak senyap supaya paparan sentiasa terkini tanpa refresh
   return p.then(r=>{ if(!AKSI_BACA[action]) jadualSegerak(2500); return r; });
 }
