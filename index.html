@@ -237,7 +237,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyNBf59FU8EueJt3QbmnxJsm1npYZtaWz0wfgFreQF5w8AuXdAaM5QTJQCkh8Enrllgng/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzLvIK-zDJjJd6l3bpfOu08ejkFXe-vQLXermz3XefigIWqqeuBZRdwR3TThGBpdGx30Q/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -2010,6 +2010,13 @@ function vDashboard(){
     <div class="small">Ranking <b>mengikut kategori</b> berdasarkan <b>rekod terbaik semasa latihan</b> ${info.JENIS==="MASA"?"(masa terendah = terbaik)":"(jarak tertinggi = terbaik)"} bagi acara <b>${esc(dAcara||"-")}</b>.</div>
     <hr/>
     <div class="small" style="margin-bottom:8px"><b>🖨 Cetak Laporan Ranking</b> — pilih format laporan:</div>
+    <div class="row" style="margin-bottom:8px">
+      <span class="small"><b>Orientasi cetakan:</b></span>
+      <select onchange="setOriCetak(this.value)" style="max-width:220px">
+        <option value="portrait" ${oriCetak()==="portrait"?"selected":""}>📄 Menegak (Portrait)</option>
+        <option value="landscape" ${oriCetak()==="landscape"?"selected":""}>📃 Melintang (Landscape)</option>
+      </select>
+    </div>
     <div class="row">
       <button class="btn sm" onclick="cetakLaporan('acara')">📄 Laporan Ikut Acara</button>
       <button class="btn sm ghost" onclick="cetakLaporan('atlet')">👥 Laporan Ikut Nama Atlet</button>
@@ -2072,6 +2079,10 @@ function selRK(rk,info){
   return senarai.map(x=>`<div><b style="color:#0b3b6f">🏆 ${esc(teksKejohanan(x,info))}</b></div>`).join("");
 }
 
+/* Orientasi cetakan laporan (menegak / melintang) */
+function oriCetak(){ try{ return localStorage.getItem("oriCetak")||"portrait"; }catch(e){ return "portrait"; } }
+function setOriCetak(v){ try{ localStorage.setItem("oriCetak",v); }catch(e){} toast(v==="landscape"?"Cetakan: Melintang (Landscape)":"Cetakan: Menegak (Portrait)"); }
+
 function gayaLaporan(){
   return `
   :root{--ink:#101828;--muted:#667085;--line:#e4e7ec;--brand:#0b3b6f;--brand2:#0f766e;--soft:#f8fafc}
@@ -2102,18 +2113,35 @@ function gayaLaporan(){
   .tandatangan div{flex:1;border-top:1px solid #98a2b3;padding-top:6px;font-size:11px;color:#344054}
   .kaki{margin-top:22px;border-top:1px solid var(--line);padding-top:8px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
   .blok{page-break-inside:avoid}
-  @media print{ body{padding:12mm} @page{size:A4 portrait;margin:12mm} .noprint{display:none!important} }
-  .noprint{position:fixed;top:10px;right:12px;display:flex;gap:8px}
-  .noprint button{font:inherit;padding:8px 14px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
-  .noprint button.g{background:#eef2f6;color:#1d2939}`;
+   @media print{ body{padding:12mm} .noprint{display:none!important} }
+   .noprint{position:fixed;top:10px;right:12px;display:flex;gap:8px;align-items:center;background:#fff;padding:6px;border-radius:10px;box-shadow:0 2px 10px rgba(16,24,40,.12)}
+   .noprint button{font:inherit;padding:8px 14px;border:0;border-radius:8px;background:var(--brand);color:#fff;cursor:pointer}
+   .noprint select{font:inherit;padding:7px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#1d2939}
+   .noprint button.g{background:#eef2f6;color:#1d2939}`;
 }
 
 function bukaLaporan(tajuk,isi){
   const kini=new Date();
   const tarikhCetak=capMasaMY(kini);
+  let oriSimpan="portrait";
+  try{ oriSimpan=localStorage.getItem("oriCetak")||"portrait"; }catch(e){}
   const html=`<!doctype html><html lang="ms"><head><meta charset="utf-8"/>
-  <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style></head><body>
-  <div class="noprint"><button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button></div>
+  <title>${esc(tajuk)}</title><style>${gayaLaporan()}</style>
+  <style id="oriPrint">@media print{@page{size:A4 ${oriSimpan};margin:12mm}}</style></head><body>
+  <div class="noprint">
+    <select id="selOri" onchange="setOri(this.value)" title="Orientasi cetakan">
+      <option value="portrait" ${oriSimpan==="portrait"?"selected":""}>📄 Menegak (Portrait)</option>
+      <option value="landscape" ${oriSimpan==="landscape"?"selected":""}>📃 Melintang (Landscape)</option>
+    </select>
+    <button onclick="window.print()">🖨 Cetak / Simpan PDF</button><button class="g" onclick="window.close()">Tutup</button>
+  </div>
+  <script>
+    function setOri(v){
+      document.getElementById("oriPrint").textContent="@media print{@page{size:A4 "+v+";margin:12mm}}";
+      try{ localStorage.setItem("oriCetak",v); }catch(e){}
+      try{ window.opener&&window.opener.localStorage.setItem("oriCetak",v); }catch(e){}
+    }
+  <\/script>
   <div class="kepala">
     <div class="logo">AT</div>
     <div><h1>${esc(tajuk)}</h1><div class="sub">AtletTraning • Sistem Pengurusan &amp; Pemantauan Prestasi Atlet</div></div>
@@ -2722,6 +2750,15 @@ function mxTapis(){
   const atletSorted=sortAtlet(atlet);
   return {atlet:atletSorted, acara:senaraiA};
 }
+/* Orientasi cetakan matriks (menegak / melintang) */
+function oriMatriks(){ try{ return localStorage.getItem("oriMatriks")||"landscape"; }catch(e){ return "landscape"; } }
+function setOriMatriks(v){
+  try{ localStorage.setItem("oriMatriks",v); }catch(e){}
+  let s=document.getElementById("oriPrintMx");
+  if(!s){ s=document.createElement("style"); s.id="oriPrintMx"; document.head.appendChild(s); }
+  s.textContent="@media print{@page{size:A4 "+v+";margin:12mm}}";
+}
+
 function vMatriks(){
   const {atlet, acara}=mxTapis();
   const sekolahOpt=[...new Set(((DB&&DB.atlet)||[]).map(a=>a.SEKOLAH).filter(Boolean))].sort();
@@ -2738,6 +2775,10 @@ function vMatriks(){
   const totKeseluruhan=atlet.reduce((s,a)=>s+totBaris(String(a.ID)),0);
   const tarikhCetak=new Date().toLocaleDateString("ms-MY",{timeZone:TZ_MY,day:"2-digit",month:"long",year:"numeric"});
   const sekolahUtama=(U&&U.sekolah)||"—";
+  setOriMatriks(oriMatriks());
+
+
+
 
   app().innerHTML=`${topbar("Matriks Peserta × Acara","home")}
   <div class="mx-tools no-print">
@@ -2756,6 +2797,10 @@ function vMatriks(){
       <option value="sekolah-nama" ${mxSortAtlet==="sekolah-nama"?"selected":""}>Susun: Sekolah → Nama</option>
       <option value="sekolah-kat" ${mxSortAtlet==="sekolah-kat"?"selected":""}>Susun: Sekolah → Kategori</option>
       <option value="kat-sekolah" ${mxSortAtlet==="kat-sekolah"?"selected":""}>Susun: Kategori → Sekolah</option>
+    </select>
+    <select onchange="setOriMatriks(this.value)" title="Orientasi cetakan">
+      <option value="landscape" ${oriMatriks()==="landscape"?"selected":""}>📃 Melintang (Landscape)</option>
+      <option value="portrait" ${oriMatriks()==="portrait"?"selected":""}>📄 Menegak (Portrait)</option>
     </select>
     <button class="mx-btn" onclick="window.print()">🖨 Cetak / Simpan PDF</button>
     <button class="mx-btn alt" onclick="mxCari='';mxSekolah='';mxKategori='';mxSortAtlet='kat-nama';vMatriks()">Reset</button>
