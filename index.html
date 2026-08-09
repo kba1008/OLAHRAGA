@@ -92,6 +92,10 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .rank.ikonImg img{width:100%;height:100%;object-fit:cover;display:block}
 .tagGugur{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.4px;background:rgba(255,77,109,.18);border:1px solid rgba(255,77,109,.5);color:#ff8fa3}
 .item.gugur{opacity:.72}
+.acara-acts{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:flex-end}
+.acara-acts .btn{margin-top:0;padding:8px 12px;border-radius:12px}
+.acara-acts .act-ic{font-size:16px;line-height:1}
+.acara-acts .act-txt{margin-left:5px;font-size:12px;font-weight:700}
 .ikonPrev{width:96px;height:96px;border-radius:22px;overflow:hidden;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:26px;margin:8px auto}
 .ikonPrev img{width:100%;height:100%;object-fit:cover;display:block}
 .g1{background:linear-gradient(135deg,#ffd700,#ff9500)}
@@ -126,13 +130,11 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
   .item .right .sub{margin-top:0}
   .item .right .sub:before{content:"• ";opacity:.55}
   .item .right .sub:first-of-type:before{content:""}
-  .item .acara-right{display:block}
-  .item .acara-right .stat-badge{margin-bottom:8px}
-  .item .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .item .acts .btn.sm{width:100%;margin-top:0;padding:10px 8px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center;line-height:1.2}
+  .acara-acts{justify-content:flex-start;width:100%;margin-top:6px}
+  .acara-acts .act-txt{display:none}
+  .acara-acts .btn{width:42px;height:42px;padding:0;border-radius:50%;justify-content:center}
+  .acara-acts .btn.bad{border-radius:50%}
 }
-.acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:8px}
-.acara-right .stat-badge{display:block}
 .sp{width:34px;height:34px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--p2);border-radius:50%;animation:s 1s linear infinite;margin:24px auto}
 @keyframes s{to{transform:rotate(360deg)}}
 .ov{position:fixed;inset:0;background:rgba(4,7,20,.82);display:flex;align-items:flex-end;justify-content:center;z-index:80;backdrop-filter:blur(6px)}
@@ -229,7 +231,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz3v_IHVHlCuipXoNRBe7pbKwxV4NyOfB3zTkG-R7IqrffDRQPqYi5LcswXRXoGADpHdw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxJTFjqZZhGzrKybRwNVSv3z-nu2SR-WhzLkEiLWPkdWp5-CDUV9G4cWJUJ5BfMTEEGtA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -485,32 +487,8 @@ function notaAcaraGugur(){
   ${g.map((a,i)=>`<tr><td class="no">${i+1}</td><td>${esc(a.ACARA)}</td><td>${esc(a.JENIS==="MASA"?"Masa":"Jarak")}</td><td>${LABEL_GUGUR}</td></tr>`).join("")}
   </tbody></table></div>`;
 }
-/* ---------- Status pertandingan KATEGORI (dalam sesuatu acara) ----------
-   Kadang-kadang kategori tertentu turut digugurkan daripada pertandingan
-   walaupun acara itu masih dipertandingkan. */
-const katGugurList=n=>String((acaraRow(n)&&acaraRow(n)["KATEGORI DIGUGUR"])||"")
-  .split(",").map(s=>String(s).toUpperCase().trim()).filter(Boolean);
-const katDigugur=(n,k)=>katGugurList(n).includes(String(k||"").toUpperCase().trim());
-/* Kategori dikira dipertandingkan hanya jika acara & kategori kedua-duanya aktif */
-const katDitanding=(n,k)=>dipertandingkan(n)&&!katDigugur(n,k);
-const LABEL_GUGUR_KAT="KATEGORI TIDAK DIPERTANDINGKAN";
-const tagGugurKat=(n,k)=>katDigugur(n,k)?`<span class="tagGugur">\u{1F6AB} ${LABEL_GUGUR_KAT}</span>`:"";
-const lblGugurKatCetak=(n,k)=>katDigugur(n,k)?` <span style="font-size:10px;font-weight:800;color:#b42318;border:1px solid #f3b1a8;background:#fef3f2;border-radius:999px;padding:1px 7px;white-space:nowrap">\u{1F6AB} ${LABEL_GUGUR_KAT}</span>`:"";
-/* Nota senarai kategori digugurkan — disisip pada setiap laporan */
-function notaKategoriGugur(){
-  const baris=[];
-  acaraList().forEach(a=>{ katGugurList(a.ACARA).forEach(k=>baris.push({acara:a.ACARA,kat:k})); });
-  if(!baris.length) return "";
-  return `<div class="blok"><h2 class="acara">KATEGORI YANG TIDAK DIPERTANDINGKAN</h2>
-  <div style="font-size:12px;padding:6px 0">Kategori berikut telah digugurkan daripada pertandingan bagi acara berkenaan. Rekod latihan bagi kategori ini <b>tidak wajib</b> diisi dan tidak diambil kira dalam analisis harapan pingat:</div>
-  <table><thead><tr><th>#</th><th>Acara</th><th>Kategori</th><th>Status</th></tr></thead><tbody>
-  ${baris.map((b,i)=>`<tr><td class="no">${i+1}</td><td>${esc(b.acara)}</td><td>${esc(b.kat)}</td><td>${LABEL_GUGUR_KAT}</td></tr>`).join("")}
-  </tbody></table></div>`;
-}
-/* Nota gabungan (acara + kategori) untuk laporan */
-const notaGugur=()=>notaAcaraGugur()+notaKategoriGugur();
 /* Boleh tukar status: Master/Sub Admin atau jurulatih acara berkenaan */
-const bolehTukarStatus=n=>bolehRekod(n);
+const bolehTukarStatus=n=>isMaster();
 /* ---------- Ikon acara (teks atau gambar — Master Admin sahaja) ---------- */
 function ikonPos(a){ const p=String((a&&a["IKON POS"])||"").split("|");
   return {x:p[0]||"50%",y:p[1]||"50%",z:Number(p[2]||100)||100}; }
@@ -521,15 +499,6 @@ function ikonAcaraHtml(a,kelas=""){
   if(url){ const p=ikonPos(a);
     return `<div class="rank ikonImg ${kelas}"><img src="${esc(url)}" alt="${esc(n)}" style="object-position:${esc(p.x)} ${esc(p.y)};transform:scale(${p.z/100})"/></div>`; }
   return `<div class="rank ${kelas}">${esc(teks.slice(0,4))}</div>`;
-}
-/* Ikon acara untuk LAPORAN CETAK (gambar atau teks) */
-function ikonCetak(n,saiz){
-  const a=(typeof acaraRow==="function")?acaraRow(n):null; if(!a) return "";
-  const sz=saiz||22, url=String((a["IKON URL"]||"")).trim();
-  const teks=(String(a.IKON||"").trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3)).toUpperCase();
-  if(url){ const p=ikonPos(a);
-    return `<span class="ikonC" style="width:${sz}px;height:${sz}px"><img src="${esc(url)}" alt="${esc(n)}" style="object-position:${esc(p.x)} ${esc(p.y)};transform:scale(${p.z/100})"/></span>`; }
-  return `<span class="ikonC txt" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*0.38)}px">${esc(teks.slice(0,4))}</span>`;
 }
 const bolehRekod=n=>!!U&&(isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JURULATIH"]).toLowerCase()===String((U&&U.emel)||"").toLowerCase()));
 const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
@@ -739,7 +708,7 @@ function go(v,c={}){
   try{ history.pushState({view:v},"", "#"+v); }catch(e){}
 }
 function goBack(){
-  const o=$("#ov"); if(o){ if(OV_KUNCI) return; tutup(); return; }
+  const o=$("#ov"); if(o){ tutup(); return; }
   const p=HIST.pop();
   if(p){ VIEW=p.view; CTX=p.ctx; window.scrollTo(0,0); render(); }
   else { VIEW="home"; CTX={}; render(); }
@@ -1052,11 +1021,11 @@ function vAcara(){
         ${tanding?"":`<div class="sub">Acara digugurkan — rekod latihan tidak wajib diisi.</div>`}
         <div class="sub jl-acara">${jl.length?jl.map(j=>`<span class="chip">👤 ${esc(j["NAMA JURULATIH"])}</span>`).join(""):`<span class="chip">Tiada jurulatih dilantik</span>`}</div>
       </div>
-      <div class="right small acara-right"><div class="stat-badge">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}</div>
-      <div class="acts">
-      ${isMaster()?`<button class="btn sm ghost" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')">🎨 Ikon</button>`:""}
-      ${bolehTukarStatus(n)?`<button class="btn sm ghost" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')">${tanding?"🚫 Digugurkan":"✅ Dipertandingkan"}</button>`:""}
-      ${susunBoleh?`<button class="btn sm bad" onclick="event.stopPropagation();padamAcara('${esc(n)}')">🗑 Padam</button>`:""}
+      <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
+      <div class="acara-acts">
+        ${isMaster()?`<button class="btn sm ghost" title="Ikon acara" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')"><span class="act-ic">🎨</span><span class="act-txt">Ikon</span></button>`:""}
+        ${bolehTukarStatus(n)?`<button class="btn sm ghost" title="${tanding?'Tanda digugurkan':'Tanda dipertandingkan'}" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')"><span class="act-ic">${tanding?"🚫":"✅"}</span><span class="act-txt">${tanding?"Digugurkan":"Dipertandingkan"}</span></button>`:""}
+        ${susunBoleh?`<button class="btn sm bad" title="Padam acara" onclick="event.stopPropagation();padamAcara('${esc(n)}')"><span class="act-ic">🗑</span><span class="act-txt">Padam</span></button>`:""}
       </div></div>
     </div>`;
   }).join("")}</div>`;
@@ -1109,8 +1078,6 @@ function formIkonAcara(n){
   const p=ikonPos(a);
   IKON_EDIT={acara:n,url:String(a["IKON URL"]||"").trim(),teks:String(a.IKON||"").toUpperCase().trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3),
              x:parseFloat(p.x)||50,y:parseFloat(p.y)||50,z:p.z};
-  const draf=bacaDraftIkon(n);
-  if(draf && !IKON_EDIT.url){ IKON_EDIT.url=draf.url; IKON_EDIT.x=draf.x; IKON_EDIT.y=draf.y; IKON_EDIT.z=draf.z; setTimeout(()=>toast("Gambar ikon yang belum disimpan telah dipulihkan."),300); }
   overlay(`<div class="big">Ikon Acara</div>
   <div class="small">${esc(n)}</div>
   <div id="ikonPrev"></div>
@@ -1125,14 +1092,13 @@ function formIkonAcara(n){
     <input id="ikY" type="range" min="0" max="100" value="${IKON_EDIT.y}" oninput="IKON_EDIT.y=+this.value;lukisIkonPrev()"/>
     <label>Zum gambar</label>
     <input id="ikZ" type="range" min="100" max="300" value="${IKON_EDIT.z}" oninput="IKON_EDIT.z=+this.value;lukisIkonPrev()"/>
-    <button class="btn sm ghost" onclick="IKON_EDIT.url='';buangDraftIkon();document.getElementById('ikLaras').classList.add('hide');lukisIkonPrev()">Buang gambar (guna teks)</button>
+    <button class="btn sm ghost" onclick="IKON_EDIT.url='';document.getElementById('ikLaras').classList.add('hide');lukisIkonPrev()">Buang gambar (guna teks)</button>
   </div>
   <button class="btn" id="btnIkon" onclick="simpanIkonAcara()">Simpan Ikon</button>
   <button class="btn ghost" onclick="tutup()">Batal</button>`);
   lukisIkonPrev();
 }
 function lukisIkonPrev(){
-  try{ if(IKON_EDIT&&IKON_EDIT.url) simpanDraftIkon(); }catch(e){}
   const el=document.getElementById("ikonPrev"); if(!el||!IKON_EDIT) return;
   el.innerHTML=IKON_EDIT.url
     ? `<div class="ikonPrev"><img src="${esc(IKON_EDIT.url)}" style="object-position:${IKON_EDIT.x}% ${IKON_EDIT.y}%;transform:scale(${IKON_EDIT.z/100})"/></div>`
@@ -1140,33 +1106,18 @@ function lukisIkonPrev(){
 }
 async function ikonPilihFail(inp){
   const f=inp.files&&inp.files[0]; if(!f) return;
-  OV_KUNCI=true;
   try{
     syncShow("Memuat naik ikon");
     const dataUrl=await fileToDataUrl(f);
     const r=await api("muatNaikIkonAcara",{acara:IKON_EDIT.acara,gambarBase64:dataUrl,...who()});
     IKON_EDIT.url=r.url; IKON_EDIT.x=50; IKON_EDIT.y=50; IKON_EDIT.z=100;
-    simpanDraftIkon();
-    /* Simpan terus ke pangkalan data supaya gambar TIDAK hilang walaupun borang tertutup */
-    try{
-      await api("tetapkanIkonAcara",{acara:IKON_EDIT.acara,ikon:String(IKON_EDIT.teks||"").toUpperCase().slice(0,4),
-        ikonUrl:IKON_EDIT.url,ikonPos:"50%|50%|100",...who()});
-      const a=acaraRow(IKON_EDIT.acara);
-      if(a){ a["IKON URL"]=IKON_EDIT.url; a["IKON POS"]="50%|50%|100"; a.IKON=String(IKON_EDIT.teks||"").toUpperCase().slice(0,4); }
-      toast("Gambar ikon disimpan. Anda boleh laraskan kedudukan & tekan Simpan Ikon.");
-    }catch(e){ toast("Gambar dimuat naik tetapi belum disimpan — tekan Simpan Ikon."); }
     const w=document.getElementById("ikLaras"); if(w) w.classList.remove("hide");
     ["ikX","ikY"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=50;});
     const z=document.getElementById("ikZ"); if(z) z.value=100;
-    lukisIkonPrev();
+    lukisIkonPrev(); toast("Gambar ikon dimuat naik");
   }catch(e){ toastRalat(e); }
-  finally{ OV_KUNCI=false; syncHide(); }
+  finally{ syncHide(); }
 }
-/* Draf ikon — supaya gambar yang dimuat naik tidak hilang jika borang tertutup */
-const LS_IKON_DRAF="atletTraning.drafIkon";
-function simpanDraftIkon(){ try{ if(IKON_EDIT&&IKON_EDIT.url) localStorage.setItem(LS_IKON_DRAF,JSON.stringify(IKON_EDIT)); }catch(e){} }
-function bacaDraftIkon(n){ try{ const d=JSON.parse(localStorage.getItem(LS_IKON_DRAF)||"null"); return (d&&d.acara===n&&d.url)?d:null; }catch(e){ return null; } }
-function buangDraftIkon(){ try{ localStorage.removeItem(LS_IKON_DRAF); }catch(e){} }
 async function simpanIkonAcara(){
   if(!IKON_EDIT) return;
   const btn=$("#btnIkon"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
@@ -1176,13 +1127,13 @@ async function simpanIkonAcara(){
     await api("tetapkanIkonAcara",{...p,...who()});
     const a=acaraRow(p.acara);
     if(a){ a.IKON=p.ikon; a["IKON URL"]=p.ikonUrl; a["IKON POS"]=p.ikonPos; }
-    buangDraftIkon(); tutup(true); render(); toast("Ikon acara dikemas kini");
+    tutup(); render(); toast("Ikon acara dikemas kini");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Ikon";} }
 }
 
 /* ---------- Tag acara digugurkan / dipertandingkan ---------- */
 async function tukarStatusAcara(n){
-  if(!bolehTukarStatus(n)) return toast("Hanya Master Admin atau jurulatih acara ini boleh menukar status.");
+  if(!isMaster()) return toast("Hanya Master Admin boleh menggugurkan acara.");
   const tanding=dipertandingkan(n);
   const nilai=tanding?"TIDAK":"YA";
   const msg=tanding
@@ -1193,24 +1144,6 @@ async function tukarStatusAcara(n){
     await api("tetapkanDipertandingkan",{acara:n,nilai,...who()});
     const a=acaraRow(n); if(a) a.DIPERTANDINGKAN=nilai;
     render(); toast(tanding?"Acara ditanda tidak dipertandingkan":"Acara ditanda dipertandingkan");
-  }catch(e){ toastRalat(e); }
-}
-
-/* ---------- Tag kategori digugurkan / dipertandingkan ---------- */
-async function tukarStatusKategori(n,k){
-  if(!bolehTukarStatus(n)) return toast("Hanya Master Admin atau jurulatih acara ini boleh menukar status.");
-  const gugur=katDigugur(n,k);
-  const nilai=gugur?"YA":"TIDAK";
-  const msg=gugur
-    ? `Tandakan semula kategori "${k}" dalam acara "${n}" sebagai DIPERTANDINGKAN?`
-    : `Tandakan kategori "${k}" dalam acara "${n}" sebagai TIDAK DIPERTANDINGKAN?\n\nKategori ini akan dipaparkan sebagai digugurkan dalam semua laporan dan tidak diambil kira dalam analisis harapan pingat.`;
-  if(!confirm(msg)) return;
-  try{
-    const r=await api("tetapkanKategoriGugur",{acara:n,kategori:k,nilai,...who()});
-    const a=acaraRow(n);
-    if(a) a["KATEGORI DIGUGUR"]=(r&&typeof r.senarai==="string")?r.senarai:
-      (gugur?katGugurList(n).filter(x=>x!==String(k).toUpperCase().trim()).join(","):katGugurList(n).concat([String(k).toUpperCase().trim()]).join(","));
-    render(); toast(gugur?"Kategori ditanda dipertandingkan":"Kategori ditanda tidak dipertandingkan");
   }catch(e){ toastRalat(e); }
 }
 
@@ -1329,12 +1262,9 @@ function headerKategoriRekod(n,info,k,bil,boleh){
       ? `<a href="javascript:void(0)" style="opacity:.9;text-decoration:none;color:var(--bad);font-weight:600" onclick="formKejohanan('${esc(n)}','${esc(k)}','','${p}')">${p} : + tetapkan</a>`
       : `<span style="opacity:.6">${p} : -</span>`;
   }).join("");
-  const gugurKat=katDigugur(n,k);
   return `<div class="card" style="padding:10px 14px;margin-bottom:8px">
-    <div><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span> ${tagGugurKat(n,k)}</div>
-    ${gugurKat?`<div class="small" style="margin-top:4px">⚠️ Kategori ini telah digugurkan daripada pertandingan bagi acara ini. Rekod latihan <b>tidak wajib</b> diisi.</div>`:""}
+    <div><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span></div>
     <div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">🏆 ${baris}</div>
-    ${bolehTukarStatus(n)?`<div style="margin-top:8px"><button class="btn sm ghost" onclick="tukarStatusKategori('${esc(n)}','${esc(k)}')">${gugurKat?"✅ Tanda Kategori Dipertandingkan":"🚫 Tanda Kategori Digugurkan"}</button></div>`:""}
   </div>`;
 }
 function formKejohanan(n,kat,id,peringkat){
@@ -2084,8 +2014,6 @@ function gayaLaporan(){
   .kepala .sub{margin-top:3px;color:var(--muted);font-size:11.5px}
   .meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
   .meta span{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:11px;color:#344054}
-  .ikonC{display:inline-flex;align-items:center;justify-content:center;overflow:hidden;border-radius:6px;background:linear-gradient(135deg,#0b3b6f,#0f766e);color:#fff;font-weight:800;vertical-align:middle;margin-right:6px;flex:none}
-  .ikonC img{width:100%;height:100%;object-fit:cover;display:block}
   h2.acara{font-size:14px;margin:20px 0 8px;padding:7px 12px;background:var(--brand);color:#fff;border-radius:6px}
   h3.kat{font-size:12.5px;margin:14px 0 6px;color:var(--brand2);border-left:4px solid var(--brand2);padding-left:8px;text-transform:uppercase;letter-spacing:.4px}
   table{width:100%;border-collapse:collapse;margin-bottom:10px}
@@ -2153,7 +2081,7 @@ function cetakLaporan(mod){
     senaraiAcara.forEach(ac=>{
       const n=ac.ACARA, {info,ikutKat}=kiraRanking(n);
       const kats=Object.keys(ikutKat).sort();
-      isi+=`<div class="blok"><h2 class="acara">${ikonCetak(n,26)}ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span>${lblGugurCetak(n)}</h2>`;
+      isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span>${lblGugurCetak(n)}</h2>`;
       if(!dipertandingkan(n)) isi+=`<div class="kosong">Acara ini telah digugurkan — ${LABEL_GUGUR}. Rekod latihan tidak wajib diisi.</div>`;
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
@@ -2168,7 +2096,7 @@ function cetakLaporan(mod){
       });
       isi+=`</div>`;
     });
-    return bukaLaporan("Laporan Ranking Mengikut Acara",isi+notaGugur());
+    return bukaLaporan("Laporan Ranking Mengikut Acara",isi+notaAcaraGugur());
   }
 
   /* mod === "atlet" : kekal tersusun mengikut kategori */
@@ -2195,13 +2123,13 @@ function cetakLaporan(mod){
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
       <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${ikonCetak(b.acara,18)}${esc(b.acara)}${b.tanding?"":lblGugurCetak(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis,b.acara)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit,b.acara)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}${b.tanding?"":lblGugurCetak(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis,b.acara)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit,b.acara)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
     isi+=`</div>`;
   });
-  bukaLaporan("Laporan Ranking Mengikut Nama Atlet",isi+notaGugur());
+  bukaLaporan("Laporan Ranking Mengikut Nama Atlet",isi+notaAcaraGugur());
 }
 
 
@@ -2282,7 +2210,7 @@ function analisisPingat(namaAcara){
       return w(a)-w(b) || ((a.jurang===null?0:a.jurang)-(b.jurang===null?0:b.jurang));
     });
     const bil=t=>baris.filter(b=>b.taraf===t).length;
-    kategori.push({kategori:g.kategori, gugur:katDigugur(namaAcara,g.kategori), rkE:rkE, rkP:rkP, rk:rkP||rkE,
+    kategori.push({kategori:g.kategori, rkE:rkE, rkP:rkP, rk:rkP||rkE,
       adaEmas:adaEmas, adaPodium:adaPodium, adaSasaran:adaSasaran,
       sasaranEmas:sasEmas, sasaranPodium:sasPodium, sasaran:sasPodium!==null?sasPodium:sasEmas,
       baris:baris,
@@ -2315,7 +2243,7 @@ function panelPingat(namaAcara){
   }
   const isi=a.kategori.map(g=>`
     <div class="card" style="padding:10px 14px;margin-bottom:8px">
-      <div><b>🥇 Anggaran Pingat — ${esc(g.kategori)}</b> ${tagGugurKat(namaAcara,g.kategori)}</div>
+      <div><b>🥇 Anggaran Pingat — ${esc(g.kategori)}</b></div>
       <div class="small" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px">
         <span>🏆 MSSK: <b>${g.adaEmas?fmtNilai(g.sasaranEmas,info):"—"}</b></span>
         <span>🏆 NO.3 MSSK: <b>${g.adaPodium?fmtNilai(g.sasaranPodium,info):"—"}</b></span>
@@ -2340,7 +2268,6 @@ function kumpulHarapan(){
   acaraDipertanding().forEach(ac=>{
     const n=ac.ACARA, a=analisisPingat(n), info=a.info;
     a.kategori.forEach(g=>{
-      if(g.gugur) return; /* kategori digugurkan */
       g.baris.forEach(b=>{
         const row={acara:n,kategori:g.kategori,info:info,b:b,g:g};
         if(b.taraf==="EMAS") emas.push(row);
@@ -2408,7 +2335,7 @@ function cetakLaporanHarapan(){
       const b=r.b,g=r.g,info=r.info;
       const jurangTxt = b.taraf==="EMAS" ? "+"+fmtJurang(b.jurangEmas,info)
         : (b.taraf==="PODIUM" ? "+"+fmtJurang(b.jurangPodium,info) : "-"+fmtJurang(b.jurang,info));
-      h+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td class="no">${i+1}</td><td><b>${esc(b.nama)}</b></td><td>${ikonCetak(r.acara,18)}${esc(r.acara)}</td><td>${esc(r.kategori)}</td><td>${esc(b.sekolah||"-")}</td>
+      h+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td class="no">${i+1}</td><td><b>${esc(b.nama)}</b></td><td>${esc(r.acara)}</td><td>${esc(r.kategori)}</td><td>${esc(b.sekolah||"-")}</td>
         <td class="num">${fmtNilai(b.terbaik,info)}</td><td class="num">${g.adaEmas?fmtNilai(g.sasaranEmas,info):"—"}</td><td class="num">${g.adaPodium?fmtNilai(g.sasaranPodium,info):"—"}</td>
         <td class="num" style="color:${warna};font-weight:700">${jurangTxt}</td></tr>`;
     });
@@ -2429,7 +2356,7 @@ function cetakLaporanHarapan(){
     + jadual("🥇 HARAPAN EMAS","#b45309",H.emas,"Rekod latihan sudah lebih baik daripada rekod MSSK — sasaran: kekalkan prestasi & tingkatkan kestabilan.")
     + jadual("🥈 HARAPAN PODIUM","#0f766e",H.podium,"Sudah melepasi rekod NO.3 MSSK — sasaran seterusnya: tembus rekod MSSK untuk emas.")
     + jadual("🔸 HAMPIR PODIUM","#b54708",H.hampir,"Jurang ≤10% daripada rekod NO.3 MSSK — paling berbaloi diberi fokus latihan.")
-    + notaGugur());
+    + notaAcaraGugur());
 }
 /* ========== LAPORAN PRESTASI SETIAP ATLET (ringkas & padat) ==========
    Setiap atlet → senarai acara yang disertai + taraf (harapan emas /
@@ -2525,7 +2452,7 @@ function cetakLaporanPrestasi(idAtlet){
     p.acara.forEach(r=>{
       const b=r.b,g=r.g,info=r.info,dd=TARAF[b.taraf]||TARAF.USAHA;
       const pct=pctJurang(r);
-      isi+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td>${ikonCetak(r.acara,18)}<b>${esc(r.acara)}</b></td>
+      isi+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td><b>${esc(r.acara)}</b></td>
         <td class="num">${b.adaRekod?fmtNilai(b.terbaik,info):"—"}</td>
         <td class="num">${g.adaPodium?fmtNilai(g.sasaranPodium,info):"—"}</td>
         <td class="num">${g.adaEmas?fmtNilai(g.sasaranEmas,info):"—"}</td>
@@ -2538,7 +2465,7 @@ function cetakLaporanPrestasi(idAtlet){
         🎯 <b>Strategi Ketua Jurulatih:</b> ${strategiAtlet(p)}
       </div></div>`;
   });
-  bukaLaporan(idAtlet?`Laporan Prestasi Atlet — ${senarai[0].nama}`:"Laporan Prestasi Setiap Atlet (Analisis Harapan Pingat)",isi+notaGugur());
+  bukaLaporan(idAtlet?`Laporan Prestasi Atlet — ${senarai[0].nama}`:"Laporan Prestasi Setiap Atlet (Analisis Harapan Pingat)",isi+notaAcaraGugur());
 }
 /* Laporan boleh cetak — semua acara, disusun mengikut acara */
 function cetakLaporanPingat(){
@@ -2553,9 +2480,8 @@ function cetakLaporanPingat(){
     const n=ac.ACARA, a=analisisPingat(n), info=a.info;
     if(!a.kategori.length) return;
     ada++; S.acara++;
-    isi+=`<div class="blok"><h2 class="acara">${ikonCetak(n,26)}ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""})</span></h2>`;
+    isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""})</span></h2>`;
     a.kategori.forEach(g=>{
-      if(g.gugur) return; /* kategori digugurkan — tidak dikira dalam anggaran pingat */
       S.unit++; S.atlet+=g.baris.length;
       g.baris.forEach(b=>{
         if(b.taraf==="TIADA_REKOD") S.atletTiadaLatihan++;
@@ -2615,7 +2541,7 @@ function cetakLaporanPingat(){
     ${senaraiBlok("Acara belum ada rekod latihan","#b42318",senaraiTiadaLatihan)}
     ${senaraiBlok("Acara tiada rekod kejohanan","#b54708",senaraiTiadaSasaran)}
   </div>`;
-  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding MSSK & NO.3 MSSK)",ringkasan+isi+notaGugur());
+  bukaLaporan("Laporan Analisis Anggaran Pingat (Banding MSSK & NO.3 MSSK)",ringkasan+isi+notaAcaraGugur());
 }
 
 
@@ -2953,12 +2879,11 @@ function vDiagnostik(){
 function overlay(html){
   const d=document.createElement("div"); d.className="ov"; d.id="ov";
   d.innerHTML=`<div class="sheet">${html}</div>`;
-  d.addEventListener("click",e=>{ if(e.target===d && !OV_KUNCI) tutup(); });
+  d.addEventListener("click",e=>{ if(e.target===d) tutup(); });
   document.body.appendChild(d);
   try{ history.pushState({ov:1},"", "#ov"); }catch(e){}
 }
-let OV_KUNCI=false; /* halang overlay ditutup semasa proses penting (cth: muat naik ikon) */
-function tutup(paksa){ if(OV_KUNCI && paksa!==true) return toast("Sedang memproses… sila tunggu sebentar."); try{ camTutup(); }catch(e){} const o=$("#ov"); if(o) o.remove(); }
+function tutup(){ try{ camTutup(); }catch(e){} const o=$("#ov"); if(o) o.remove(); }
 
 /* ---------- Mula ---------- */
 if("serviceWorker" in navigator){
