@@ -223,7 +223,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbz3v_IHVHlCuipXoNRBe7pbKwxV4NyOfB3zTkG-R7IqrffDRQPqYi5LcswXRXoGADpHdw/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbxJTFjqZZhGzrKybRwNVSv3z-nu2SR-WhzLkEiLWPkdWp5-CDUV9G4cWJUJ5BfMTEEGtA/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -516,6 +516,15 @@ function ikonAcaraHtml(a,kelas=""){
     return `<div class="rank ikonImg ${kelas}"><img src="${esc(url)}" alt="${esc(n)}" style="object-position:${esc(p.x)} ${esc(p.y)};transform:scale(${p.z/100})"/></div>`; }
   return `<div class="rank ${kelas}">${esc(teks.slice(0,4))}</div>`;
 }
+/* Ikon acara untuk LAPORAN CETAK (gambar atau teks) */
+function ikonCetak(n,saiz){
+  const a=(typeof acaraRow==="function")?acaraRow(n):null; if(!a) return "";
+  const sz=saiz||22, url=String((a["IKON URL"]||"")).trim();
+  const teks=(String(a.IKON||"").trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3)).toUpperCase();
+  if(url){ const p=ikonPos(a);
+    return `<span class="ikonC" style="width:${sz}px;height:${sz}px"><img src="${esc(url)}" alt="${esc(n)}" style="object-position:${esc(p.x)} ${esc(p.y)};transform:scale(${p.z/100})"/></span>`; }
+  return `<span class="ikonC txt" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*0.38)}px">${esc(teks.slice(0,4))}</span>`;
+}
 const bolehRekod=n=>!!U&&(isAdmin()||jurulatihAcara(n).some(j=>String(j["EMEL JURULATIH"]).toLowerCase()===String((U&&U.emel)||"").toLowerCase()));
 const penyertaan=n=>((DB&&DB.penyertaan)||[]).filter(p=>p.ACARA===n);
 const rekodAcara=n=>((DB&&DB.rekod&&DB.rekod[n])||[]);
@@ -724,7 +733,7 @@ function go(v,c={}){
   try{ history.pushState({view:v},"", "#"+v); }catch(e){}
 }
 function goBack(){
-  const o=$("#ov"); if(o){ tutup(); return; }
+  const o=$("#ov"); if(o){ if(OV_KUNCI) return; tutup(); return; }
   const p=HIST.pop();
   if(p){ VIEW=p.view; CTX=p.ctx; window.scrollTo(0,0); render(); }
   else { VIEW="home"; CTX={}; render(); }
@@ -1092,6 +1101,8 @@ function formIkonAcara(n){
   const p=ikonPos(a);
   IKON_EDIT={acara:n,url:String(a["IKON URL"]||"").trim(),teks:String(a.IKON||"").toUpperCase().trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3),
              x:parseFloat(p.x)||50,y:parseFloat(p.y)||50,z:p.z};
+  const draf=bacaDraftIkon(n);
+  if(draf && !IKON_EDIT.url){ IKON_EDIT.url=draf.url; IKON_EDIT.x=draf.x; IKON_EDIT.y=draf.y; IKON_EDIT.z=draf.z; setTimeout(()=>toast("Gambar ikon yang belum disimpan telah dipulihkan."),300); }
   overlay(`<div class="big">Ikon Acara</div>
   <div class="small">${esc(n)}</div>
   <div id="ikonPrev"></div>
@@ -1106,13 +1117,14 @@ function formIkonAcara(n){
     <input id="ikY" type="range" min="0" max="100" value="${IKON_EDIT.y}" oninput="IKON_EDIT.y=+this.value;lukisIkonPrev()"/>
     <label>Zum gambar</label>
     <input id="ikZ" type="range" min="100" max="300" value="${IKON_EDIT.z}" oninput="IKON_EDIT.z=+this.value;lukisIkonPrev()"/>
-    <button class="btn sm ghost" onclick="IKON_EDIT.url='';document.getElementById('ikLaras').classList.add('hide');lukisIkonPrev()">Buang gambar (guna teks)</button>
+    <button class="btn sm ghost" onclick="IKON_EDIT.url='';buangDraftIkon();document.getElementById('ikLaras').classList.add('hide');lukisIkonPrev()">Buang gambar (guna teks)</button>
   </div>
   <button class="btn" id="btnIkon" onclick="simpanIkonAcara()">Simpan Ikon</button>
   <button class="btn ghost" onclick="tutup()">Batal</button>`);
   lukisIkonPrev();
 }
 function lukisIkonPrev(){
+  try{ if(IKON_EDIT&&IKON_EDIT.url) simpanDraftIkon(); }catch(e){}
   const el=document.getElementById("ikonPrev"); if(!el||!IKON_EDIT) return;
   el.innerHTML=IKON_EDIT.url
     ? `<div class="ikonPrev"><img src="${esc(IKON_EDIT.url)}" style="object-position:${IKON_EDIT.x}% ${IKON_EDIT.y}%;transform:scale(${IKON_EDIT.z/100})"/></div>`
@@ -1120,18 +1132,33 @@ function lukisIkonPrev(){
 }
 async function ikonPilihFail(inp){
   const f=inp.files&&inp.files[0]; if(!f) return;
+  OV_KUNCI=true;
   try{
     syncShow("Memuat naik ikon");
     const dataUrl=await fileToDataUrl(f);
     const r=await api("muatNaikIkonAcara",{acara:IKON_EDIT.acara,gambarBase64:dataUrl,...who()});
     IKON_EDIT.url=r.url; IKON_EDIT.x=50; IKON_EDIT.y=50; IKON_EDIT.z=100;
+    simpanDraftIkon();
+    /* Simpan terus ke pangkalan data supaya gambar TIDAK hilang walaupun borang tertutup */
+    try{
+      await api("tetapkanIkonAcara",{acara:IKON_EDIT.acara,ikon:String(IKON_EDIT.teks||"").toUpperCase().slice(0,4),
+        ikonUrl:IKON_EDIT.url,ikonPos:"50%|50%|100",...who()});
+      const a=acaraRow(IKON_EDIT.acara);
+      if(a){ a["IKON URL"]=IKON_EDIT.url; a["IKON POS"]="50%|50%|100"; a.IKON=String(IKON_EDIT.teks||"").toUpperCase().slice(0,4); }
+      toast("Gambar ikon disimpan. Anda boleh laraskan kedudukan & tekan Simpan Ikon.");
+    }catch(e){ toast("Gambar dimuat naik tetapi belum disimpan — tekan Simpan Ikon."); }
     const w=document.getElementById("ikLaras"); if(w) w.classList.remove("hide");
     ["ikX","ikY"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=50;});
     const z=document.getElementById("ikZ"); if(z) z.value=100;
-    lukisIkonPrev(); toast("Gambar ikon dimuat naik");
+    lukisIkonPrev();
   }catch(e){ toastRalat(e); }
-  finally{ syncHide(); }
+  finally{ OV_KUNCI=false; syncHide(); }
 }
+/* Draf ikon — supaya gambar yang dimuat naik tidak hilang jika borang tertutup */
+const LS_IKON_DRAF="atletTraning.drafIkon";
+function simpanDraftIkon(){ try{ if(IKON_EDIT&&IKON_EDIT.url) localStorage.setItem(LS_IKON_DRAF,JSON.stringify(IKON_EDIT)); }catch(e){} }
+function bacaDraftIkon(n){ try{ const d=JSON.parse(localStorage.getItem(LS_IKON_DRAF)||"null"); return (d&&d.acara===n&&d.url)?d:null; }catch(e){ return null; } }
+function buangDraftIkon(){ try{ localStorage.removeItem(LS_IKON_DRAF); }catch(e){} }
 async function simpanIkonAcara(){
   if(!IKON_EDIT) return;
   const btn=$("#btnIkon"); if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
@@ -1141,7 +1168,7 @@ async function simpanIkonAcara(){
     await api("tetapkanIkonAcara",{...p,...who()});
     const a=acaraRow(p.acara);
     if(a){ a.IKON=p.ikon; a["IKON URL"]=p.ikonUrl; a["IKON POS"]=p.ikonPos; }
-    tutup(); render(); toast("Ikon acara dikemas kini");
+    buangDraftIkon(); tutup(true); render(); toast("Ikon acara dikemas kini");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Ikon";} }
 }
 
@@ -2049,6 +2076,8 @@ function gayaLaporan(){
   .kepala .sub{margin-top:3px;color:var(--muted);font-size:11.5px}
   .meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
   .meta span{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:11px;color:#344054}
+  .ikonC{display:inline-flex;align-items:center;justify-content:center;overflow:hidden;border-radius:6px;background:linear-gradient(135deg,#0b3b6f,#0f766e);color:#fff;font-weight:800;vertical-align:middle;margin-right:6px;flex:none}
+  .ikonC img{width:100%;height:100%;object-fit:cover;display:block}
   h2.acara{font-size:14px;margin:20px 0 8px;padding:7px 12px;background:var(--brand);color:#fff;border-radius:6px}
   h3.kat{font-size:12.5px;margin:14px 0 6px;color:var(--brand2);border-left:4px solid var(--brand2);padding-left:8px;text-transform:uppercase;letter-spacing:.4px}
   table{width:100%;border-collapse:collapse;margin-bottom:10px}
@@ -2116,7 +2145,7 @@ function cetakLaporan(mod){
     senaraiAcara.forEach(ac=>{
       const n=ac.ACARA, {info,ikutKat}=kiraRanking(n);
       const kats=Object.keys(ikutKat).sort();
-      isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span>${lblGugurCetak(n)}</h2>`;
+      isi+=`<div class="blok"><h2 class="acara">${ikonCetak(n,26)}ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""}${info.JENIS==="MASA"?" • masa terendah = terbaik":" • nilai tertinggi = terbaik"})</span>${lblGugurCetak(n)}</h2>`;
       if(!dipertandingkan(n)) isi+=`<div class="kosong">Acara ini telah digugurkan — ${LABEL_GUGUR}. Rekod latihan tidak wajib diisi.</div>`;
       if(!kats.length){ isi+=`<div class="kosong">Tiada rekod bagi acara ini.</div></div>`; return; }
       kats.forEach(k=>{
@@ -2158,7 +2187,7 @@ function cetakLaporan(mod){
       isi+=`<h3 class="kat">${esc(nama)} <span style="font-weight:400;text-transform:none;color:#667085">— ${esc(d.sekolah||"-")}</span></h3>
       <table><thead><tr><th>Acara</th><th style="text-align:right">Rekod Kejohanan (Kategori)</th><th style="text-align:right">Rekod Peribadi (Kejohanan Lepas)</th><th>3 Rekod Terbaik (Latihan)</th><th style="text-align:right">Terbaik</th><th style="text-align:right">Bil.</th><th style="text-align:right">Kedudukan Kategori</th></tr></thead><tbody>`;
       d.baris.sort((x,y)=>x.acara.localeCompare(y.acara)).forEach(b=>{
-        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${esc(b.acara)}${b.tanding?"":lblGugurCetak(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis,b.acara)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit,b.acara)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
+        isi+=`<tr class="${b.kedudukan===1?"emas":""}"><td>${ikonCetak(b.acara,18)}${esc(b.acara)}${b.tanding?"":lblGugurCetak(b.acara)}</td><td class="num">${selRK(b.rk,b.info)}</td><td class="num">${selRP(b)}</td><td>${selTop3(b,b.unit,b.jenis,b.acara)}</td><td class="num">${fmtNilaiUnit(b.terbaik,b.jenis,b.unit,b.acara)}</td><td class="num">${b.n}</td><td class="num">${b.kedudukan} / ${b.jumlah}</td></tr>`;
       });
       isi+=`</tbody></table>`;
     });
@@ -2371,7 +2400,7 @@ function cetakLaporanHarapan(){
       const b=r.b,g=r.g,info=r.info;
       const jurangTxt = b.taraf==="EMAS" ? "+"+fmtJurang(b.jurangEmas,info)
         : (b.taraf==="PODIUM" ? "+"+fmtJurang(b.jurangPodium,info) : "-"+fmtJurang(b.jurang,info));
-      h+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td class="no">${i+1}</td><td><b>${esc(b.nama)}</b></td><td>${esc(r.acara)}</td><td>${esc(r.kategori)}</td><td>${esc(b.sekolah||"-")}</td>
+      h+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td class="no">${i+1}</td><td><b>${esc(b.nama)}</b></td><td>${ikonCetak(r.acara,18)}${esc(r.acara)}</td><td>${esc(r.kategori)}</td><td>${esc(b.sekolah||"-")}</td>
         <td class="num">${fmtNilai(b.terbaik,info)}</td><td class="num">${g.adaEmas?fmtNilai(g.sasaranEmas,info):"—"}</td><td class="num">${g.adaPodium?fmtNilai(g.sasaranPodium,info):"—"}</td>
         <td class="num" style="color:${warna};font-weight:700">${jurangTxt}</td></tr>`;
     });
@@ -2488,7 +2517,7 @@ function cetakLaporanPrestasi(idAtlet){
     p.acara.forEach(r=>{
       const b=r.b,g=r.g,info=r.info,dd=TARAF[b.taraf]||TARAF.USAHA;
       const pct=pctJurang(r);
-      isi+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td><b>${esc(r.acara)}</b></td>
+      isi+=`<tr class="${b.taraf==="EMAS"?"emas":""}"><td>${ikonCetak(r.acara,18)}<b>${esc(r.acara)}</b></td>
         <td class="num">${b.adaRekod?fmtNilai(b.terbaik,info):"—"}</td>
         <td class="num">${g.adaPodium?fmtNilai(g.sasaranPodium,info):"—"}</td>
         <td class="num">${g.adaEmas?fmtNilai(g.sasaranEmas,info):"—"}</td>
@@ -2516,7 +2545,7 @@ function cetakLaporanPingat(){
     const n=ac.ACARA, a=analisisPingat(n), info=a.info;
     if(!a.kategori.length) return;
     ada++; S.acara++;
-    isi+=`<div class="blok"><h2 class="acara">ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""})</span></h2>`;
+    isi+=`<div class="blok"><h2 class="acara">${ikonCetak(n,26)}ACARA: ${esc(n)} <span style="font-weight:400;font-size:11px">(${esc(info.JENIS||"")}${info.UNIT?" • "+esc(info.UNIT):""})</span></h2>`;
     a.kategori.forEach(g=>{
       if(g.gugur) return; /* kategori digugurkan — tidak dikira dalam anggaran pingat */
       S.unit++; S.atlet+=g.baris.length;
@@ -2916,11 +2945,12 @@ function vDiagnostik(){
 function overlay(html){
   const d=document.createElement("div"); d.className="ov"; d.id="ov";
   d.innerHTML=`<div class="sheet">${html}</div>`;
-  d.addEventListener("click",e=>{ if(e.target===d) tutup(); });
+  d.addEventListener("click",e=>{ if(e.target===d && !OV_KUNCI) tutup(); });
   document.body.appendChild(d);
   try{ history.pushState({ov:1},"", "#ov"); }catch(e){}
 }
-function tutup(){ try{ camTutup(); }catch(e){} const o=$("#ov"); if(o) o.remove(); }
+let OV_KUNCI=false; /* halang overlay ditutup semasa proses penting (cth: muat naik ikon) */
+function tutup(paksa){ if(OV_KUNCI && paksa!==true) return toast("Sedang memproses… sila tunggu sebentar."); try{ camTutup(); }catch(e){} const o=$("#ov"); if(o) o.remove(); }
 
 /* ---------- Mula ---------- */
 if("serviceWorker" in navigator){
