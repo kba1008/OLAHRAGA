@@ -18,6 +18,7 @@ var SHEET_JURULATIH = "JURULATIH_ACARA";
 var SHEET_PENYERTAAN = "PENYERTAAN";
 var SHEET_FAIL = "FAIL_ATLET";
 var SHEET_KEJOHANAN = "REKOD_KEJOHANAN";
+var SHEET_KAT_GUGUR = "KATEGORI_GUGUR";
 var PREFIX_REKOD = "REKOD_";
 
 /* ID Google Sheet UTAMA (pangkalan data). Skrip akan buka sheet ini terus,
@@ -44,6 +45,7 @@ HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "MOD", "SUSUNAN", "AKTIF"];
 HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
 HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
 HEADERS[SHEET_KEJOHANAN] = ["ID", "ACARA", "KATEGORI", "NAMA KEJOHANAN", "TAHUN", "PEMEGANG REKOD", "NILAI", "KEPUTUSAN", "CATATAN", "DITETAPKAN OLEH", "TARIKH & MASA"];
+HEADERS[SHEET_KAT_GUGUR] = ["ACARA", "KATEGORI", "STATUS", "OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
 var HEADER_REKOD = ["ID", "TARIKH", "MASA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "KEPUTUSAN", "NILAI", "CATATAN", "DICATAT OLEH", "TARIKH & MASA REKOD"];
 
@@ -145,6 +147,7 @@ function setupPangkalanData() {
   dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
   dapatSheet(SHEET_FAIL, HEADERS[SHEET_FAIL], "#0aa5d6");
   dapatSheet(SHEET_KEJOHANAN, HEADERS[SHEET_KEJOHANAN], "#b45309");
+  dapatSheet(SHEET_KAT_GUGUR, HEADERS[SHEET_KAT_GUGUR], "#b42318");
   var sa = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
   if (sa.getLastRow() < 2) sa.getRange(2, 1, ACARA_LALAI.length, 6).setValues(ACARA_LALAI);
   baca(SHEET_ACARA).forEach(function (a) { if (a["ACARA"]) sheetRekod(a["ACARA"]); });
@@ -215,6 +218,7 @@ function semuaData(p) {
     rekod: rekod,
     failAtlet: baca(SHEET_FAIL),
     kejohanan: baca(SHEET_KEJOHANAN),
+    katGugur: baca(SHEET_KAT_GUGUR),
     masaPelayan: nowStr()
   };
 }
@@ -795,7 +799,7 @@ function tetapNilaiAcara_(nama, petaNilai) {
 
 /* Ikon acara — MASTER ADMIN sahaja (teks atau gambar yang dimuat naik). */
 function tetapkanIkonAcara(p) {
-  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh mengubah ikon acara.");
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin & Sub Admin boleh mengubah ikon acara.");
   var nama = String(p.acara || "").trim();
   var teks = String(p.ikon || "").toUpperCase().trim().substring(0, 4);
   var url = normalGambar(p.ikonUrl || "");
@@ -805,7 +809,7 @@ function tetapkanIkonAcara(p) {
 
 /* Muat naik gambar ikon acara — MASTER ADMIN sahaja. */
 function muatNaikIkonAcara(p) {
-  if (!isMasterAdmin(p.olehEmel)) throw new Error("Hanya Master Admin boleh memuat naik ikon acara.");
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin & Sub Admin boleh memuat naik ikon acara.");
   return muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: "IKON_" + String(p.acara || "ACARA").replace(/[^A-Za-z0-9]/g, "_") });
 }
 
@@ -813,11 +817,32 @@ function muatNaikIkonAcara(p) {
 function tetapkanDipertandingkan(p) {
   var nama = String(p.acara || "").trim();
   if (!nama) throw new Error("Acara diperlukan.");
-  if (!isMasterAdmin(p.olehEmel)) {
-    throw new Error("Hanya Master Admin boleh menggugurkan acara.");
+  if (!isAdmin(p.olehEmel)) {
+    throw new Error("Hanya Master Admin & Sub Admin boleh menggugurkan acara.");
   }
   var nilai = String(p.nilai || "YA").toUpperCase() === "TIDAK" ? "TIDAK" : "YA";
   return tetapNilaiAcara_(nama, { "DIPERTANDINGKAN": nilai });
+}
+
+/* Gugurkan / kembalikan satu KATEGORI dalam satu ACARA.
+   Hanya MASTER ADMIN & SUB ADMIN dibenarkan. */
+function tetapkanKategoriGugur(p) {
+  var acara = String(p.acara || "").toUpperCase().trim();
+  var kategori = String(p.kategori || "").toUpperCase().trim();
+  if (!acara || !kategori) throw new Error("Acara dan kategori diperlukan.");
+  if (!isAdmin(p.olehEmel)) throw new Error("Hanya Master Admin & Sub Admin boleh menggugurkan kategori.");
+  var status = String(p.status || "DIGUGURKAN").toUpperCase().trim() === "DIGUGURKAN" ? "DIGUGURKAN" : "AKTIF";
+  var s = dapatSheet(SHEET_KAT_GUGUR, HEADERS[SHEET_KAT_GUGUR], "#b42318");
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]).toUpperCase().trim() === acara && String(v[i][1]).toUpperCase().trim() === kategori) {
+      s.deleteRow(i + 1);
+    }
+  }
+  if (status === "DIGUGURKAN") {
+    s.appendRow([acara, kategori, "DIGUGURKAN", p.olehNama || p.olehEmel || "", nowStr()]);
+  }
+  return { ok: true, acara: acara, kategori: kategori, status: status };
 }
 
 /* Susunan acara — MASTER ADMIN sahaja (drag & drop pada app). */
@@ -976,6 +1001,7 @@ var TINDAKAN = {
   tetapkanIkonAcara: tetapkanIkonAcara,
   muatNaikIkonAcara: muatNaikIkonAcara,
   tetapkanDipertandingkan: tetapkanDipertandingkan,
+  tetapkanKategoriGugur: tetapkanKategoriGugur,
   rekodKejohanan: simpanRekodKejohanan,
   padamRekodKejohanan: padamRekodKejohanan
 };

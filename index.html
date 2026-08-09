@@ -96,6 +96,12 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .acara-acts .btn{margin-top:0;padding:8px 12px;border-radius:12px}
 .acara-acts .act-ic{font-size:16px;line-height:1}
 .acara-acts .act-txt{margin-left:5px;font-size:12px;font-weight:700}
+.acara-menu-btn{width:42px;height:42px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;font-weight:700}
+.dd-menu{position:fixed;z-index:9999;min-width:210px;background:var(--card,#fff);border:1px solid rgba(0,0,0,.12);border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px;overflow:hidden}
+.dd-tajuk{font-size:11px;font-weight:800;opacity:.6;padding:6px 10px 8px;text-transform:uppercase;letter-spacing:.4px}
+.dd-item{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:inherit}
+.dd-item:hover{background:rgba(0,0,0,.06)}
+.dd-item.bad{color:#c62828}
 .ikonPrev{width:96px;height:96px;border-radius:22px;overflow:hidden;background:var(--grad);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:26px;margin:8px auto}
 .ikonPrev img{width:100%;height:100%;object-fit:cover;display:block}
 .g1{background:linear-gradient(135deg,#ffd700,#ff9500)}
@@ -475,6 +481,28 @@ const acaraDipertanding=()=>acaraList().filter(a=>dipertandingkan(a.ACARA));
 const acaraDigugur=()=>acaraList().filter(a=>!dipertandingkan(a.ACARA));
 const LABEL_GUGUR="TIDAK DIPERTANDINGKAN";
 const tagGugur=n=>dipertandingkan(n)?"":`<span class="tagGugur">🚫 ${LABEL_GUGUR}</span>`;
+/* ---------- Status kategori dalam acara (gugur / dipertandingkan) ---------- */
+const LABEL_KAT_GUGUR="KATEGORI DIGUGURKAN";
+const kunciKat=(n,k)=>String(n||"").toUpperCase().trim()+"||"+String(k||"").toUpperCase().trim();
+const kategoriDigugur=(n,k)=>((DB&&DB.katGugur)||[]).some(r=>kunciKat(r.ACARA,r.KATEGORI)===kunciKat(n,k)&&String(r.STATUS||"").toUpperCase().trim()==="DIGUGURKAN");
+/* Hanya Master Admin & Sub Admin boleh gugurkan kategori */
+const bolehGugurKategori=()=>isAdmin();
+const tagKatGugur=(n,k)=>kategoriDigugur(n,k)?`<span class="tagGugur">🚫 ${LABEL_KAT_GUGUR}</span>`:"";
+async function tukarStatusKategori(n,k){
+  if(!bolehGugurKategori()) return toast("Hanya Master Admin & Sub Admin boleh menggugurkan kategori.");
+  const gugur=kategoriDigugur(n,k);
+  const status=gugur?"AKTIF":"DIGUGURKAN";
+  const msg=gugur
+    ? `Kembalikan kategori "${k}" dalam acara "${n}" ke pertandingan?`
+    : `Gugurkan kategori "${k}" daripada acara "${n}"?\n\nAtlet & rekod dikekalkan, tetapi kategori ini ditanda "${LABEL_KAT_GUGUR}" dan dikecualikan daripada perbandingan sasaran/analisis harapan pingat.`;
+  if(!confirm(msg)) return;
+  try{
+    await api("tetapkanKategoriGugur",{acara:n,kategori:k,status,...who()});
+    DB.katGugur=(DB.katGugur||[]).filter(r=>kunciKat(r.ACARA,r.KATEGORI)!==kunciKat(n,k));
+    if(status==="DIGUGURKAN") DB.katGugur.push({ACARA:String(n).toUpperCase(),KATEGORI:String(k).toUpperCase(),STATUS:"DIGUGURKAN","OLEH":U.nama,"TARIKH & MASA":capMY()});
+    render(); toast(gugur?"Kategori dikembalikan ke pertandingan":"Kategori digugurkan");
+  }catch(e){ toastRalat(e); }
+}
 /* Label untuk laporan bercetak (dokumen putih) */
 const lblGugurCetak=n=>dipertandingkan(n)?"":` <span style="font-size:10px;font-weight:800;color:#b42318;border:1px solid #f3b1a8;background:#fef3f2;border-radius:999px;padding:1px 7px;white-space:nowrap">🚫 ${LABEL_GUGUR}</span>`;
 /* Nota ringkas senarai acara digugurkan — disisip pada setiap laporan */
@@ -488,7 +516,7 @@ function notaAcaraGugur(){
   </tbody></table></div>`;
 }
 /* Boleh tukar status: Master/Sub Admin atau jurulatih acara berkenaan */
-const bolehTukarStatus=n=>isMaster();
+const bolehTukarStatus=n=>isAdmin();
 /* ---------- Ikon acara (teks atau gambar — Master Admin sahaja) ---------- */
 function ikonPos(a){ const p=String((a&&a["IKON POS"])||"").split("|");
   return {x:p[0]||"50%",y:p[1]||"50%",z:Number(p[2]||100)||100}; }
@@ -1023,14 +1051,47 @@ function vAcara(){
       </div>
       <div class="right small">${boleh?'<span class="badge">BOLEH REKOD</span>':"Lihat sahaja"}
       <div class="acara-acts">
-        ${isMaster()?`<button class="btn sm ghost" title="Ikon acara" onclick="event.stopPropagation();formIkonAcara('${esc(n)}')"><span class="act-ic">🎨</span><span class="act-txt">Ikon</span></button>`:""}
-        ${bolehTukarStatus(n)?`<button class="btn sm ghost" title="${tanding?'Tanda digugurkan':'Tanda dipertandingkan'}" onclick="event.stopPropagation();tukarStatusAcara('${esc(n)}')"><span class="act-ic">${tanding?"🚫":"✅"}</span><span class="act-txt">${tanding?"Digugurkan":"Dipertandingkan"}</span></button>`:""}
-        ${susunBoleh?`<button class="btn sm bad" title="Padam acara" onclick="event.stopPropagation();padamAcara('${esc(n)}')"><span class="act-ic">🗑</span><span class="act-txt">Padam</span></button>`:""}
+        ${isAdmin()?`<button class="btn sm ghost acara-menu-btn" title="Tindakan acara" onclick="event.stopPropagation();menuAcara('${esc(n)}',this)">⋯</button>`:""}
       </div></div>
+
     </div>`;
   }).join("")}</div>`;
   if(susunBoleh) pasangDragAcara();
 }
+
+/* Menu tindakan acara (dropdown pada ikon ⋯) — Master Admin & Sub Admin sahaja */
+function tutupDropdown(){ document.querySelectorAll(".dd-menu").forEach(m=>m.remove()); }
+document.addEventListener("click",tutupDropdown);
+window.addEventListener("resize",tutupDropdown);
+window.addEventListener("scroll",tutupDropdown,true);
+
+function menuAcara(n,btn){
+  if(!isAdmin()) return toast("Hanya Master Admin & Sub Admin boleh menggunakan menu ini.");
+  const buka=btn&&btn.dataset.ddOpen==="1";
+  tutupDropdown();
+  document.querySelectorAll("[data-dd-open]").forEach(b=>b.dataset.ddOpen="0");
+  if(buka) return;
+  const tanding=dipertandingkan(n);
+  const m=document.createElement("div");
+  m.className="dd-menu";
+  m.onclick=e=>e.stopPropagation();
+  m.innerHTML=`<div class="dd-tajuk">${esc(n)}</div>
+  <button class="dd-item" onclick="tutupDropdown();formIkonAcara('${esc(n)}')">🎨 Ikon Acara</button>
+  <button class="dd-item" onclick="tutupDropdown();tukarStatusAcara('${esc(n)}')">${tanding?"🚫 Tanda Digugurkan":"✅ Tanda Dipertandingkan"}</button>
+  <button class="dd-item bad" onclick="tutupDropdown();padamAcara('${esc(n)}')">🗑 Padam Acara</button>`;
+  document.body.appendChild(m);
+  if(btn){
+    btn.dataset.ddOpen="1";
+    const r=btn.getBoundingClientRect(), lebar=m.offsetWidth||210, tinggi=m.offsetHeight||150;
+    let kiri=r.right-lebar; if(kiri<8) kiri=8;
+    if(kiri+lebar>window.innerWidth-8) kiri=window.innerWidth-lebar-8;
+    let atas=r.bottom+6;
+    if(atas+tinggi>window.innerHeight-8) atas=Math.max(8,r.top-tinggi-6);
+    m.style.left=kiri+"px"; m.style.top=atas+"px";
+  }
+}
+
+
 
 /* Drag & drop susunan acara — Master Admin sahaja */
 let DRAG_EL=null;
@@ -1073,7 +1134,7 @@ async function padamAcara(n){
 /* ---------- Ikon Acara — MASTER ADMIN sahaja ---------- */
 let IKON_EDIT=null; /* {acara, url, teks, x, y, z} */
 function formIkonAcara(n){
-  if(!isMaster()) return toast("Hanya Master Admin boleh mengubah ikon acara.");
+  if(!isAdmin()) return toast("Hanya Master Admin & Sub Admin boleh mengubah ikon acara.");
   const a=acaraRow(n); if(!a) return toast("Acara tidak dijumpai");
   const p=ikonPos(a);
   IKON_EDIT={acara:n,url:String(a["IKON URL"]||"").trim(),teks:String(a.IKON||"").toUpperCase().trim()||String(n).replace(/[^A-Za-z0-9]/g,"").slice(0,3),
@@ -1262,8 +1323,16 @@ function headerKategoriRekod(n,info,k,bil,boleh){
       ? `<a href="javascript:void(0)" style="opacity:.9;text-decoration:none;color:var(--bad);font-weight:600" onclick="formKejohanan('${esc(n)}','${esc(k)}','','${p}')">${p} : + tetapkan</a>`
       : `<span style="opacity:.6">${p} : -</span>`;
   }).join("");
-  return `<div class="card" style="padding:10px 14px;margin-bottom:8px">
-    <div><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span></div>
+  const gugur=kategoriDigugur(n,k);
+  const btn=bolehGugurKategori()
+    ? `<button class="btn sm ghost" style="margin:0;white-space:nowrap${gugur?"":";color:var(--bad);border-color:var(--bad)"}" onclick="tukarStatusKategori('${esc(n)}','${esc(k)}')">${gugur?"✅ Kembalikan Kategori":"🚫 Gugurkan Kategori"}</button>`
+    : "";
+  return `<div class="card" style="padding:10px 14px;margin-bottom:8px${gugur?";opacity:.72":""}">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px"><b>Kategori: ${esc(k)}</b> <span class="small">• ${bil} atlet</span> ${tagKatGugur(n,k)}</div>
+      ${btn}
+    </div>
+    ${gugur?`<div class="small" style="margin-top:6px">🚫 Kategori ini telah digugurkan daripada kejohanan — dikecualikan daripada perbandingan sasaran & analisis harapan pingat.</div>`:""}
     <div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">🏆 ${baris}</div>
   </div>`;
 }
@@ -1913,7 +1982,7 @@ function vDashboard(){
     const rkHtml=`<div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">🏆 ${
       PERINGKAT_KEJOHANAN.map(pk=>{ const rk=kejohananPeringkat(dAcara,k,pk);
         return rk?`<b>${esc(teksKejohanan(rk,info))}</b>`:`<span style="opacity:.6">${pk} : -</span>`; }).join("")}</div>`;
-    return `<div class="card" style="padding:10px 14px;margin-bottom:8px"><div><b>Kategori: ${esc(k)}</b> <span class="small">• ${rows.length} atlet</span></div>${rkHtml}</div>`
+    return `<div class="card" style="padding:10px 14px;margin-bottom:8px"><div><b>Kategori: ${esc(k)}</b> <span class="small">• ${rows.length} atlet</span> ${tagKatGugur(dAcara,k)}</div>${rkHtml}</div>`
       + rows.map((r,i)=>{
         const a=atletById(r.id)||{JANTINA:""};
         const top3Html=r.top3&&r.top3.length
@@ -2174,6 +2243,7 @@ function analisisPingat(namaAcara){
   const kategori=[];
   Object.keys(peta).sort().forEach(kk=>{
     const g=peta[kk];
+    if(kategoriDigugur(namaAcara,g.kategori)) return; /* kategori digugurkan — tidak dibanding */
     const rkE=kejohananPeringkat(namaAcara,g.kategori,"MSSK");
     const rkP=kejohananPeringkat(namaAcara,g.kategori,"NO.3 MSSK");
     const adaEmas=!!(rkE&&Number(rkE.NILAI)>0);
