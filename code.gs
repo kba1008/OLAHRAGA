@@ -43,7 +43,7 @@ HEADERS[SHEET_ATLET] = ["ID", "NAMA PENUH", "NO IC", "JANTINA", "KATEGORI", "SEK
 HEADERS[SHEET_KEHADIRAN] = ["ID", "TARIKH", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "STATUS", "CATATAN", "DICATAT OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_ACARA] = ["ACARA", "JENIS", "UNIT", "MOD", "SUSUNAN", "AKTIF"];
 HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANTIK OLEH", "TARIKH LANTIKAN"];
-HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH"];
+HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH", "SUSUNAN"];
 HEADERS[SHEET_KEJOHANAN] = ["ID", "ACARA", "KATEGORI", "NAMA KEJOHANAN", "TAHUN", "PEMEGANG REKOD", "NILAI", "KEPUTUSAN", "CATATAN", "DITETAPKAN OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_KAT_GUGUR] = ["ACARA", "KATEGORI", "STATUS", "OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
@@ -201,6 +201,7 @@ function login(p) {
 function semuaData(p) {
   setupSekaliSahaja();
   try { pastikanKolumAcara(); } catch (e) {}
+  try { pastikanKolumPenyertaan(); } catch (e) {}
   var acara = baca(SHEET_ACARA).filter(function (a) { return a["ACARA"]; });
   acara.sort(function (a, b) {
     var x = Number(a["SUSUNAN"] || 0) || 9999, y = Number(b["SUSUNAN"] || 0) || 9999;
@@ -529,6 +530,72 @@ function simpanKehadiran(p) {
   return { ok: true };
 }
 
+/* ---------------- Auto Kehadiran ----------------
+   Bila jurulatih mengisi rekod / menambah peserta, atlet terus dikira HADIR
+   pada tarikh tersebut (tiada lagi sekatan "kehadiran belum ditanda"). */
+function pastikanHadir_(atletId, nama, kategori, sekolah, tarikh, olehNama) {
+  var t = tarikh || hariIni();
+  dapatSheet(SHEET_KEHADIRAN, HEADERS[SHEET_KEHADIRAN], "#0f9d58");
+  var s = ss().getSheetByName(SHEET_KEHADIRAN);
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (tarikhStr(v[i][1]) === t && String(v[i][2]) === String(atletId)) {
+      if (String(v[i][6]).toUpperCase() === "HADIR") return { ok: true, sedia: true };
+      s.getRange(i + 1, 7, 1, 4).setValues([["HADIR", "Auto — rekod latihan", olehNama || "", nowStr()]]);
+      return { ok: true, auto: true, kemaskini: true };
+    }
+  }
+  s.appendRow([idBaharu("K", SHEET_KEHADIRAN), t, atletId, nama || "", kategori || "", sekolah || "", "HADIR", "Auto — rekod latihan", olehNama || "", nowStr()]);
+  return { ok: true, auto: true, baharu: true };
+}
+
+/* Migrasi ringan: pastikan sheet PENYERTAAN mempunyai kolum SUSUNAN. */
+function pastikanKolumPenyertaan() {
+  var s = dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
+  var lc = Math.max(s.getLastColumn(), 1);
+  var head = s.getRange(1, 1, 1, lc).getValues()[0].map(function (x) { return String(x).toUpperCase().trim(); });
+  if (head.indexOf("SUSUNAN") >= 0) return s;
+  var col = HEADERS[SHEET_PENYERTAAN].length;
+  if (s.getMaxColumns() < col) s.insertColumnsAfter(s.getMaxColumns(), col - s.getMaxColumns());
+  s.getRange(1, col).setValue("SUSUNAN").setFontWeight("bold").setFontColor("#ffffff").setBackground("#d81b60")
+    .setHorizontalAlignment("center").setVerticalAlignment("middle");
+  s.setColumnWidth(col, 120);
+  var lr = s.getLastRow();
+  if (lr > 1) {
+    var nilai = [];
+    for (var i = 2; i <= lr; i++) nilai.push([i - 1]);
+    s.getRange(2, col, nilai.length, 1).setValues(nilai);
+  }
+  return s;
+}
+
+/* Susunan peserta dalam SATU kategori bagi SATU acara (drag & drop).
+   Jurulatih acara atau Master Admin sahaja. Hanya baris kategori itu diubah. */
+function susunPeserta(p) {
+  if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh menyusun peserta.");
+  var kategori = String(p.kategori || "").toUpperCase().trim();
+  var senarai = [];
+  if (Object.prototype.toString.call(p.senarai) === "[object Array]") senarai = p.senarai.slice();
+  else if (p.senarai) senarai = String(p.senarai).split("|");
+  senarai = senarai.map(function (x) { return String(x).trim(); }).filter(function (x) { return x; });
+  if (!senarai.length) throw new Error("Senarai susunan kosong.");
+
+  var s = pastikanKolumPenyertaan();
+  var col = HEADERS[SHEET_PENYERTAAN].length; /* kolum SUSUNAN */
+  var v = s.getDataRange().getValues();
+  var n = 0;
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) !== String(p.acara)) continue;
+    var kat = String(v[i][3] || "TANPA KATEGORI").toUpperCase().trim();
+    if (kategori && kat !== kategori) continue; /* kategori lain tidak disentuh */
+    var idx = senarai.indexOf(String(v[i][1]));
+    if (idx < 0) continue;
+    s.getRange(i + 1, col).setValue(idx + 1);
+    n++;
+  }
+  return { ok: true, bil: n, kategori: kategori };
+}
+
 function lantikJurulatih(p) {
   /* Master Admin ATAU jurulatih acara itu boleh melantik jurulatih pembantu. */
   if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya Master Admin atau jurulatih acara ini boleh melantik jurulatih.");
@@ -560,14 +627,17 @@ function bolehRekod(acara, emel) {
 
 function tambahPenyertaan(p) {
   if (!bolehRekod(p.acara, p.olehEmel)) throw new Error("Hanya jurulatih acara ini atau Master Admin boleh menambah atlet ke acara.");
-  var hadir = baca(SHEET_KEHADIRAN).some(function (k) {
-    return tarikhStr(k["TARIKH"]) === (p.tarikh || hariIni()) && String(k["ATLET ID"]) === String(p.atletId) && String(k["STATUS"]).toUpperCase() === "HADIR";
-  });
-  if (!hadir) throw new Error("Kehadiran atlet pada hari ini belum ditanda.");
+  /* Auto: atlet yang dimasukkan ke acara terus dikira HADIR pada tarikh tersebut. */
+  pastikanHadir_(p.atletId, p.nama, p.kategori, p.sekolah, p.tarikh || hariIni(), p.olehNama);
   dapatSheet(SHEET_PENYERTAAN, HEADERS[SHEET_PENYERTAAN], "#d81b60");
   var ada = baca(SHEET_PENYERTAAN).some(function (x) { return x["ACARA"] === p.acara && String(x["ATLET ID"]) === String(p.atletId); });
   if (ada) throw new Error("Atlet sudah berada dalam acara ini.");
-  ss().getSheetByName(SHEET_PENYERTAAN).appendRow([p.acara, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.rekodPeribadi || "", p.olehNama, nowStr()]);
+  pastikanKolumPenyertaan();
+  var sp = ss().getSheetByName(SHEET_PENYERTAAN);
+  var bilKat = baca(SHEET_PENYERTAAN).filter(function (x) {
+    return x["ACARA"] === p.acara && String(x["KATEGORI"] || "").toUpperCase() === String(p.kategori || "").toUpperCase();
+  }).length;
+  sp.appendRow([p.acara, p.atletId, p.nama, p.kategori || "", p.sekolah || "", p.rekodPeribadi || "", p.olehNama, nowStr(), bilKat + 1]);
   sheetRekod(p.acara);
   return { ok: true };
 }
@@ -601,7 +671,7 @@ function tetapkanAcaraAtlet(p) {
   var tambah = 0;
   for (var j = 0; j < mahu.length; j++) {
     if (sedia[mahu[j]]) continue;
-    s.appendRow([mahu[j], atletId, atlet["NAMA PENUH"], atlet["KATEGORI"] || "", atlet["SEKOLAH"] || "", "", p.olehNama, nowStr()]);
+    s.appendRow([mahu[j], atletId, atlet["NAMA PENUH"], atlet["KATEGORI"] || "", atlet["SEKOLAH"] || "", "", p.olehNama, nowStr(), 9999]);
     sheetRekod(mahu[j]);
     tambah++;
   }
@@ -643,13 +713,12 @@ function simpanRekodLatihan(p) {
   namaList = namaList.map(function (x) { return String(x).trim(); });
   while (namaList.length < atletIds.length) namaList.push(atletIds[namaList.length]);
 
-  var kehadiran = baca(SHEET_KEHADIRAN);
+  /* Auto kehadiran: setiap atlet dalam rekod ini terus ditanda HADIR. */
+  var autoHadir = [];
   for (var i = 0; i < atletIds.length; i++) {
     var aid = atletIds[i];
-    var hadir = kehadiran.some(function (k) {
-      return tarikhStr(k["TARIKH"]) === tarikh && String(k["ATLET ID"]) === String(aid) && String(k["STATUS"]).toUpperCase() === "HADIR";
-    });
-    if (!hadir) throw new Error("Kehadiran atlet " + (namaList[i] || aid) + " pada " + tarikh + " belum ditanda. Rekod latihan tidak boleh diambil.");
+    var rh = pastikanHadir_(aid, namaList[i] || "", p.kategori, p.sekolah, tarikh, p.olehNama);
+    if (rh && rh.auto) autoHadir.push(aid);
   }
 
   var idJoin = atletIds.join(", ");
@@ -661,6 +730,8 @@ function simpanRekodLatihan(p) {
   s.appendRow([id, tarikh, masa, idJoin, namaJoin, p.kategori || "", p.sekolah || "", p.keputusan, Number(p.nilai) || "", p.catatan || "", p.olehNama, tms]);
   return {
     ok: true,
+    autoHadir: autoHadir,
+    tarikhHadir: tarikh,
     rekod: {
       "ID": id, "TARIKH": tarikh, "MASA": masa, "ATLET ID": idJoin, "NAMA ATLET": namaJoin,
       "KATEGORI": p.kategori || "", "SEKOLAH": p.sekolah || "", "KEPUTUSAN": p.keputusan,
@@ -998,6 +1069,7 @@ var TINDAKAN = {
   tambahAcara: tambahAcara,
   padamAcara: padamAcara,
   susunAcara: susunAcara,
+  susunPeserta: susunPeserta,
   tetapkanIkonAcara: tetapkanIkonAcara,
   muatNaikIkonAcara: muatNaikIkonAcara,
   tetapkanDipertandingkan: tetapkanDipertandingkan,

@@ -860,7 +860,7 @@ function vHome(){
     <div class="tile t3" onclick="go('dashboard')"><div class="ic">📊</div><div class="tt">DASHBOARD</div><div class="ts">Ranking pencapaian</div></div>
     <div class="tile t1" onclick="go('matriks')"><div class="ic">📋</div><div class="tt">MATRIKS ACARA</div><div class="ts">Cek list peserta × acara</div></div>
   </div>
-  <div class="card" style="margin-top:14px"><div class="small">Tarikh: <b>${t}</b> • Kehadiran wajib ditanda sebelum rekod latihan boleh diambil.</div>
+  <div class="card" style="margin-top:14px"><div class="small">Tarikh: <b>${t}</b> • Kehadiran ditanda automatik apabila jurulatih mengisi rekod peserta.</div>
   <button class="btn ghost sm" style="margin-top:10px" onclick="muat()">↻ Segar semula data</button></div>`;
 }
 
@@ -1229,7 +1229,8 @@ async function simpanAcara(){
 }
 
 /* ---------- 6. Butiran Acara (papar rekod hari ini pada setiap atlet) ---------- */
-let AD_KAT="__ALL__", AD_SORT="nama"; /* filter kategori + susunan */
+let AD_KAT="__ALL__", AD_SORT="susun"; /* filter kategori + susunan */
+const susunNo=p=>{const v=Number(p.SUSUNAN); return isFinite(v)&&v>0?v:9999;};
 function vAcaraDetail(){
   const n=CTX.acara, info=acaraInfo(n), boleh=bolehRekod(n), jl=jurulatihAcara(n);
   const t=today();
@@ -1244,6 +1245,7 @@ function vAcaraDetail(){
   const bilRekod=(p)=>rekodAcara(n).filter(r=>rekodMilik(r,p["ATLET ID"])).length;
   const asc=info.JENIS==="MASA"; /* MASA: kecil dulu; JARAK: besar dulu */
   const susun={
+    susun:(a,b)=>susunNo(a)-susunNo(b) || String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
     nama:(a,b)=>String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
     terbaik:(a,b)=>{ const x=nilai(a),y=nilai(b); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return asc?x-y:y-x; },
     hariIni:(a,b)=>bilHariIni(b)-bilHariIni(a) || String(a["NAMA ATLET"]).localeCompare(String(b["NAMA ATLET"])),
@@ -1263,7 +1265,9 @@ function vAcaraDetail(){
       const c=semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===k).length;
       return `<button class="${AD_KAT===k?"on":""}" onclick="AD_KAT='${esc(k)}';render()">${esc(k)} (${c})</button>`;
     }).join("")}</div>`;
+  const dragOn=boleh && AD_SORT==="susun";
   const sortHtml=`<label>Susun ikut</label><select onchange="AD_SORT=this.value;render()">
+    <option value="susun" ${AD_SORT==="susun"?"selected":""}>Susunan Jurulatih (seret ⠿)</option>
     <option value="nama" ${AD_SORT==="nama"?"selected":""}>Nama (A-Z)</option>
     <option value="terbaik" ${AD_SORT==="terbaik"?"selected":""}>Rekod Terbaik</option>
     <option value="hariIni" ${AD_SORT==="hariIni"?"selected":""}>Rekod Hari Ini (banyak dulu)</option>
@@ -1292,15 +1296,54 @@ function vAcaraDetail(){
     <div class="small">Tapis mengikut kategori & susunan untuk memudahkan jurulatih menganalisis.</div>
     ${tabsHtml}
     ${sortHtml}
+    ${boleh?`<div class="small" style="margin-top:8px">${dragOn
+      ? "Seret ikon ⠿ untuk menyusun peserta. Susunan hanya boleh diubah <b>dalam kategori yang sama</b> dan disimpan automatik."
+      : "Pilih <b>Susunan Jurulatih</b> untuk menyeret & menyusun peserta dalam kategori."}</div>`:""}
   </div>
   <div id="senaraiAD">
   ${Object.keys(groups).length===0?`<div class="card small">Belum ada atlet dalam acara ini.</div>`:
     Object.keys(groups).sort().map(k=>{
       const list=groups[k];
       const hdr=headerKategoriRekod(n,info,k,list.length,boleh);
-      return hdr + list.map(p=>itemAcaraDetail(n,p,info,boleh,t)).join("");
+      return hdr + `<div class="katGroup" data-kat="${esc(k)}">` + list.map(p=>itemAcaraDetail(n,p,info,boleh,t,dragOn)).join("") + `</div>`;
     }).join("")}
   </div>`;
+  if(dragOn) pasangDragPeserta(n);
+}
+
+/* ---- Drag & drop susunan peserta (dalam kategori sahaja) ---- */
+let DRAG_P=null;
+function pasangDragPeserta(n){
+  const wrap=document.getElementById("senaraiAD"); if(!wrap) return;
+  wrap.querySelectorAll(".katGroup").forEach(grp=>{
+    grp.querySelectorAll(".item[draggable=true]").forEach(el=>{
+      el.addEventListener("dragstart",e=>{ DRAG_P=el; el.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",el.dataset.atlet||"")}catch(_){} });
+      el.addEventListener("dragend",()=>{ el.classList.remove("dragging"); grp.querySelectorAll(".item").forEach(x=>x.classList.remove("dragOver")); const d=DRAG_P; DRAG_P=null; if(d) simpanSusunanPeserta(n,grp); });
+      el.addEventListener("dragover",e=>{
+        if(!DRAG_P||DRAG_P===el) return;
+        if(DRAG_P.parentElement!==grp) return; /* kategori berbeza — tidak dibenarkan */
+        e.preventDefault(); el.classList.add("dragOver");
+        const r=el.getBoundingClientRect();
+        const selepas=(e.clientY-r.top)>r.height/2;
+        grp.insertBefore(DRAG_P, selepas?el.nextSibling:el);
+      });
+      el.addEventListener("dragleave",()=>el.classList.remove("dragOver"));
+      el.addEventListener("drop",e=>{ e.preventDefault(); el.classList.remove("dragOver"); });
+      const h=el.querySelector(".dragHandle");
+      if(h){ h.addEventListener("touchstart",()=>{},{passive:true}); }
+    });
+  });
+}
+async function simpanSusunanPeserta(n,grp){
+  const kategori=grp.dataset.kat||"";
+  const senarai=[...grp.querySelectorAll(".item[data-atlet]")].map(x=>x.dataset.atlet);
+  if(!senarai.length) return;
+  senarai.forEach((id,i)=>{
+    const p=(DB.penyertaan||[]).find(x=>x.ACARA===n && String(x["ATLET ID"])===String(id));
+    if(p) p.SUSUNAN=i+1;
+  });
+  try{ await api("susunPeserta",{acara:n,kategori,senarai,...who()}); toast("Susunan peserta disimpan"); }
+  catch(e){ toastRalat(e); render(); }
 }
 /* ---------- Rekod Kejohanan (sasaran) mengikut acara + kategori ---------- */
 function kadKejohanan(n,info,boleh,kats){
@@ -1388,7 +1431,7 @@ async function padamKejohanan(n,id){
     render(); toast("Rekod kejohanan dipadam");
   }catch(e){ toastRalat(e); }
 }
-function itemAcaraDetail(n,p,info,boleh,t){
+function itemAcaraDetail(n,p,info,boleh,t,dragOn){
   const a=atletById(p["ATLET ID"])||{"NAMA PENUH":p["NAMA ATLET"],KATEGORI:p.KATEGORI,SEKOLAH:p.SEKOLAH,ID:p["ATLET ID"]};
   const b=terbaik(n,p["ATLET ID"]), hadir=hadirHariIni(p["ATLET ID"],t);
   const lagiBaik=(x,y)=>info.JENIS==="MASA"?x-y:y-x; /* terbaik dahulu */
@@ -1428,7 +1471,8 @@ function itemAcaraDetail(n,p,info,boleh,t){
     ${rk?`<span>🏆 Sasaran (${esc(rk.KATEGORI)}): <b>${esc(rk.KEPUTUSAN||fmtNilai(Number(rk.NILAI),info))}</b></span>${jurang}`:""}
     ${hadir?'<span style="color:var(--ok)">• hadir hari ini</span>':'<span style="color:var(--warn)">• belum tanda kehadiran</span>'}
   </div>`;
-  return `<div class="item" id="ad-${esc(n)}-${esc(p["ATLET ID"])}">
+  return `<div class="item" id="ad-${esc(n)}-${esc(p["ATLET ID"])}" data-atlet="${esc(p["ATLET ID"])}" ${dragOn?'draggable="true"':""}>
+    ${dragOn?`<div class="dragHandle" title="Seret untuk susun dalam kategori ini" onclick="event.stopPropagation()">⠿</div>`:""}
     <img class="av" src="${avatar(a)}" ${avErr(a)}/>
     <div style="flex:1" onclick="go('profil',{id:'${esc(p["ATLET ID"])}'})">
       <div class="nm">${esc(p["NAMA ATLET"])}</div>
@@ -1506,7 +1550,8 @@ function kemasItemAD(n,atletId){
   if(!el){ render(); return; } /* Fallback: paksa lukis semula supaya rekod baru muncul tanpa refresh */
   const info=acaraInfo(n), boleh=bolehRekod(n);
   const p=penyertaan(n).find(x=>String(x["ATLET ID"])===String(atletId)); if(!p){ render(); return; }
-  el.outerHTML=itemAcaraDetail(n,p,info,boleh,today());
+  el.outerHTML=itemAcaraDetail(n,p,info,boleh,today(),boleh&&AD_SORT==="susun");
+  if(boleh&&AD_SORT==="susun") pasangDragPeserta(n);
 }
 function formJurulatih(n){
   const opts=(DB.guru||[]).map(g=>`<option value="${esc(g.emel)}|${esc(g.nama)}">${esc(g.nama)} — ${esc(g.sekolah)}</option>`).join("");
@@ -1538,11 +1583,11 @@ function formPenyertaan(n){
     const cari=(String(a["NAMA PENUH"]||"")+" "+String(a.KATEGORI||"")+" "+String(a.SEKOLAH||"")).toLowerCase();
     return `<label class="atletPick" data-cari="${esc(cari)}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer">
       <input type="radio" name="paChoice" value="${esc(a.ID)}" style="width:18px;height:18px;flex:0 0 auto;margin:0"/>
-      <span style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a["NAMA PENUH"])}</div><div class="small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.KATEGORI||"")} • ${esc(a.SEKOLAH||"")} ${hadir?'<span style="color:var(--ok)">✓ hadir</span>':'<span style="color:var(--warn)">(belum hadir)</span>'}</div></span>
+      <span style="flex:1;min-width:0;overflow:hidden"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a["NAMA PENUH"])}</div><div class="small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.KATEGORI||"")} • ${esc(a.SEKOLAH||"")} ${hadir?'<span style="color:var(--ok)">✓ hadir</span>':'<span style="color:var(--warn)">(auto hadir)</span>'}</div></span>
     </label>`;
   }).join("");
   overlay(`<div class="big">Tambah Atlet — ${esc(n)}</div>
-  <p class="small">Hanya atlet yang telah ditanda <b>HADIR</b> hari ini boleh dimasukkan.</p>
+  <p class="small">Atlet yang dipilih akan <b>automatik ditanda HADIR</b> hari ini.</p>
   <label>Cari Atlet</label>
   <input id="paCari" placeholder="Taip nama, kategori, atau sekolah…" autocomplete="off" oninput="tapisAtletPick(this.value)"/>
   <div id="paSenarai" style="max-height:45vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-top:6px">${baris||'<div class="small" style="padding:10px">Semua atlet sudah berada dalam acara ini.</div>'}</div>
@@ -1568,6 +1613,7 @@ async function simpanP(n){
   const a=id?atletById(id):null;
   if(!a){ if(btn){btn.disabled=false;btn.textContent="Tambah";} return toast("Pilih atlet dari senarai"); }
   try{ await api("tambahPenyertaan",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,tarikh:today(),...who()});
+    setKehadiranLokal(id,today(),"HADIR",a["NAMA PENUH"]||"",a.KATEGORI||"",a.SEKOLAH||"");
     (DB.penyertaan=DB.penyertaan||[]).push({ACARA:n,"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"],KATEGORI:a.KATEGORI,SEKOLAH:a.SEKOLAH,"REKOD PERIBADI":"","DIMASUKKAN OLEH":U.nama,TARIKH:capMY()});
     tutup(); render(); toast("Atlet ditambah");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Tambah";} }
@@ -1596,6 +1642,7 @@ async function simpanR(n,id){
   if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 15.45 atau 1:15.45)":"Masukkan keputusan yang sah"); }
   try{
     const r=await api("rekod",{acara:n,atletId:id,nama:a["NAMA PENUH"],kategori:a.KATEGORI,sekolah:a.SEKOLAH,keputusan:fmtNilai(nilai,info),nilai,catatan,tarikh,...who()});
+    setKehadiranLokal(id,tarikh,"HADIR",a["NAMA PENUH"]||"",a.KATEGORI||"",a.SEKOLAH||"");
     if(r && r.rekod) tambahRekodLokal(n, r.rekod);
     tutup();
     render(); /* Sentiasa lukis semula supaya rekod baharu terus muncul tanpa perlu refresh */
@@ -1616,11 +1663,9 @@ function formRekodRelay(n){
     return `<div class="teamKat">${esc(k)}</div>` +
       list.map(p=>{
         const hadir=hadirHariIni(p["ATLET ID"],t);
-        const dis=hadir?"":"disabled";
-        const warna=hadir?"":"opacity:.55";
-        return `<label class="teamRow${hadir?"":" off"}">
-          <input type="checkbox" class="relayChk" value="${esc(p["ATLET ID"])}" data-nama="${esc(p["NAMA ATLET"])}" data-kat="${esc(p.KATEGORI||"")}" data-sek="${esc(p.SEKOLAH||"")}" ${dis}/>
-          <span class="tinfo"><span class="tnama">${esc(p["NAMA ATLET"])}</span><span class="tsub">${esc(p.SEKOLAH||"")} • ${hadir?'<span class="ok">✓ hadir</span>':'<span class="no">belum hadir</span>'}</span></span>
+        return `<label class="teamRow">
+          <input type="checkbox" class="relayChk" value="${esc(p["ATLET ID"])}" data-nama="${esc(p["NAMA ATLET"])}" data-kat="${esc(p.KATEGORI||"")}" data-sek="${esc(p.SEKOLAH||"")}"/>
+          <span class="tinfo"><span class="tnama">${esc(p["NAMA ATLET"])}</span><span class="tsub">${esc(p.SEKOLAH||"")} • ${hadir?'<span class="ok">✓ hadir</span>':'<span class="no">auto hadir</span>'}</span></span>
         </label>`;
       }).join("");
   }).join("");
@@ -1631,7 +1676,7 @@ function formRekodRelay(n){
   <input id="rrv" inputmode="decimal" placeholder="${info.JENIS==="MASA"?"Cth: 45.12 atau 1:45.12":"Cth: 4.63"}"/>
   ${info.JENIS==="MASA"?`<div class="small">Format: <b>45.12</b> (saat) atau <b>1:45.12</b> / <b>1.45.12</b> (1 minit 45.12 saat).</div>`:""}
   <label>Catatan</label><textarea id="rrc" rows="2" placeholder="Cth: pusingan akhir, susunan larian"></textarea>
-  <div class="small" style="margin-top:8px"><b>Ahli Pasukan</b> — hanya atlet yang telah ditanda HADIR boleh dipilih.</div>
+  <div class="small" style="margin-top:8px"><b>Ahli Pasukan</b> — atlet yang dipilih akan automatik ditanda HADIR.</div>
   <div class="teamBox">${senarai||'<div class="small">Tiada atlet.</div>'}</div>
   <button class="btn" id="btnRR" onclick="simpanRRelay('${esc(n)}')">Simpan Rekod Pasukan</button>
   <button class="btn ghost" onclick="tutup()">Tutup</button>`);
@@ -1653,6 +1698,7 @@ async function simpanRRelay(n){
   if(!(nilai>0)){ if(btn){btn.disabled=false;btn.textContent="Simpan Rekod Pasukan";} return toast(info.JENIS==="MASA"?"Masukkan masa yang sah (cth: 45.12 atau 1:45.12)":"Masukkan keputusan yang sah"); }
   try{
     const r=await api("rekod",{acara:n,atletIds,namaList,kategori,sekolah,keputusan:fmtNilai(nilai,info),nilai,catatan,tarikh,...who()});
+    atletIds.forEach((aid,i)=>{ const aa=atletById(aid)||{}; setKehadiranLokal(aid,tarikh,"HADIR",aa["NAMA PENUH"]||namaList[i]||"",aa.KATEGORI||"",aa.SEKOLAH||""); });
     if(r && r.rekod) tambahRekodLokal(n, r.rekod);
     tutup(); render(); toast("Rekod pasukan disimpan");
   }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan Rekod Pasukan";} }
