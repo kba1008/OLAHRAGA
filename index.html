@@ -120,27 +120,48 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;min-width:18px;fle
 .tabs button{white-space:nowrap;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--mut);font-weight:800;font-size:12.5px;cursor:pointer}
 .tabs button.on{background:var(--grad);color:#fff;border-color:transparent}
 
-/* --- Susunan kad atlet lebih kemas pada paparan telefon --- */
+/* --- Susunan kad atlet lebih kemas & padat pada paparan telefon --- */
 @media (max-width: 640px){
-  .item{flex-wrap:wrap; align-items:flex-start; gap:10px; padding:12px}
-  .item > .rank{width:34px;height:34px;border-radius:10px;font-size:13px}
-  .item > .av{width:44px;height:44px;border-radius:12px}
+  .wrap{padding:10px}
+  body{padding-bottom:84px}
+  h1,h2,h3{margin:0 0 6px}
+  h3{font-size:15px}
+  .card{padding:11px 12px;border-radius:16px;margin-bottom:9px}
+  .item{flex-wrap:wrap; align-items:center; gap:8px; padding:9px 10px; margin-bottom:7px; border-radius:14px}
+  .item > .rank{width:28px;height:28px;border-radius:9px;font-size:12px}
+  .item > .av{width:38px;height:38px;border-radius:11px}
   .item > div[style*="flex:1"]{min-width:0;flex:1 1 60%}
-  .item .nm{font-size:13.5px}
+  .item .nm{font-size:13px}
+  .item .sub{font-size:11px;margin-top:2px;line-height:1.35}
   .item .right{
     order:99; width:100%; margin-left:0; text-align:left;
-    display:flex; align-items:baseline; gap:6px 14px; flex-wrap:wrap;
-    padding:8px 2px 2px; border-top:1px dashed var(--line);
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    padding:7px 0 0; margin-top:5px; border-top:1px dashed var(--line);
   }
-  .item .right .nm{font-size:17px;color:var(--p2)}
+  .item .right .btn.sm{flex:1 1 auto;margin-top:0!important;padding:7px 10px;font-size:12px;border-radius:11px}
+  .item .right .nm{font-size:15px;color:var(--p2)}
   .item .right .sub{margin-top:0}
   .item .right .sub:before{content:"• ";opacity:.55}
   .item .right .sub:first-of-type:before{content:""}
-  .acara-acts{justify-content:flex-start;width:100%;margin-top:6px}
+  .btn{padding:11px 13px;margin-top:9px;font-size:14px;border-radius:13px}
+  .btn.sm{padding:7px 11px;font-size:12px}
+  .pill{font-size:11px}
+  .small{font-size:11px}
+  .chip{font-size:10.5px;padding:2px 8px}
+  .tabs{gap:6px;margin-bottom:8px}
+  .tabs button{padding:6px 11px;font-size:11.5px}
+  label{margin:8px 0 4px;font-size:11.5px}
+  input,select,textarea{padding:10px 12px;font-size:14px;border-radius:12px}
+  .stat{padding:8px;border-radius:13px}
+  .stat b{font-size:18px}
+  .row{gap:8px}
+  .row>*{min-width:118px}
+  .acara-acts{justify-content:flex-start;width:100%;margin-top:6px;gap:6px}
   .acara-acts .act-txt{display:none}
-  .acara-acts .btn{width:42px;height:42px;padding:0;border-radius:50%;justify-content:center}
+  .acara-acts .btn{width:38px;height:38px;padding:0;border-radius:50%;justify-content:center}
   .acara-acts .btn.bad{border-radius:50%}
 }
+
 .sp{width:34px;height:34px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--p2);border-radius:50%;animation:s 1s linear infinite;margin:24px auto}
 @keyframes s{to{transform:rotate(360deg)}}
 .ov{position:fixed;inset:0;background:rgba(4,7,20,.82);display:flex;align-items:flex-end;justify-content:center;z-index:80;backdrop-filter:blur(6px)}
@@ -237,7 +258,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbzTr6FfZM14qMRYZqKNgUWr-UsdXNBiyPzCWyr4bwDl9cwEehUDKi7tOwlA_XSMAIC3tA/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbyNBf59FU8EueJt3QbmnxJsm1npYZtaWz0wfgFreQF5w8AuXdAaM5QTJQCkh8Enrllgng/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
@@ -1229,16 +1250,25 @@ async function simpanAcara(){
 }
 
 /* ---------- 6. Butiran Acara (papar rekod hari ini pada setiap atlet) ---------- */
+/* Acara MIX: lelaki & perempuan bertanding dalam acara yang sama, jadi
+   senarai kategori BPL/BPP digabungkan menjadi satu kumpulan sahaja. */
+function isAcaraMix(n){ return /(^|[^A-Z0-9])MIX([^A-Z0-9]|$)/i.test(String(n||"")); }
+function katKunci(n,kat){
+  const k=String(kat||"TANPA KATEGORI").toUpperCase().trim();
+  if(!isAcaraMix(n)) return k;
+  const g=k.replace(/[LP](?=\s*\d)/,"").replace(/\s+/g," ").trim();
+  return "MIX "+(g||k);
+}
 let AD_KAT="__ALL__", AD_SORT="susun"; /* filter kategori + susunan */
 const susunNo=p=>{const v=Number(p.SUSUNAN); return isFinite(v)&&v>0?v:9999;};
 function vAcaraDetail(){
   const n=CTX.acara, info=acaraInfo(n), boleh=bolehRekod(n), jl=jurulatihAcara(n);
   const t=today();
   const semua=penyertaan(n);
-  // Senarai kategori unik dalam acara ini
-  const kats=[...new Set(semua.map(p=>String(p.KATEGORI||"").toUpperCase()).filter(Boolean))].sort();
+  // Senarai kategori unik dalam acara ini (acara MIX: L & P digabung)
+  const kats=[...new Set(semua.map(p=>katKunci(n,p.KATEGORI)).filter(Boolean))].sort();
   if(AD_KAT!=="__ALL__" && !kats.includes(AD_KAT)) AD_KAT="__ALL__";
-  const pl=AD_KAT==="__ALL__"?semua:semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===AD_KAT);
+  const pl=AD_KAT==="__ALL__"?semua:semua.filter(p=>katKunci(n,p.KATEGORI)===AD_KAT);
   // Susunan
   const nilai=(p)=>terbaik(n,p["ATLET ID"]);
   const bilHariIni=(p)=>rekodAcara(n).filter(r=>rekodMilik(r,p["ATLET ID"]) && String(r.TARIKH).slice(0,10)===t).length;
@@ -1256,13 +1286,13 @@ function vAcaraDetail(){
   // Pengumpulan mengikut kategori bila "Semua" dipilih
   const groups={};
   if(AD_KAT==="__ALL__"){
-    sorted.forEach(p=>{ const k=String(p.KATEGORI||"TANPA KATEGORI").toUpperCase(); (groups[k]=groups[k]||[]).push(p); });
+    sorted.forEach(p=>{ const k=katKunci(n,p.KATEGORI); (groups[k]=groups[k]||[]).push(p); });
   } else {
     groups[AD_KAT]=sorted;
   }
   const tabsHtml=`<div class="tabs"><button class="${AD_KAT==="__ALL__"?"on":""}" onclick="AD_KAT='__ALL__';render()">Semua (${semua.length})</button>${
     kats.map(k=>{
-      const c=semua.filter(p=>String(p.KATEGORI||"").toUpperCase()===k).length;
+      const c=semua.filter(p=>katKunci(n,p.KATEGORI)===k).length;
       return `<button class="${AD_KAT===k?"on":""}" onclick="AD_KAT='${esc(k)}';render()">${esc(k)} (${c})</button>`;
     }).join("")}</div>`;
   const dragOn=boleh && AD_SORT==="susun";
@@ -1483,6 +1513,7 @@ function itemAcaraDetail(n,p,info,boleh,t,dragOn){
     ${boleh?`<div class="right">
       ${!isBerpasukan(n)?`<button class="btn sm" onclick="event.stopPropagation();formRekod('${esc(n)}','${esc(p["ATLET ID"])}')">+ Rekod</button>`:""}
       <button class="btn sm ${hadir?"ok":"ghost"}" ${PENDING_KEH[p["ATLET ID"]]?"disabled":""} style="margin-top:6px" onclick="event.stopPropagation();tandaHadirAcara('${esc(n)}','${esc(p["ATLET ID"])}','${hadir?"TIDAK HADIR":"HADIR"}')">${PENDING_KEH[p["ATLET ID"]]?"…":(hadir?"✅ Hadir":"✅ Tanda Hadir")}</button>
+      <button class="btn sm ghost" style="margin-top:6px" title="Edit / padam rekod ralat" onclick="event.stopPropagation();urusRekodAtlet('${esc(n)}','${esc(p["ATLET ID"])}')">🗂 Urus Rekod</button>
     </div>`:""}
   </div>`;
 }
@@ -1761,6 +1792,36 @@ async function padamRekod(n,id){
   }catch(e){ toastRalat(e); }
 }
 
+/* ---------- Urus rekod atlet terus dari pelaporan (jurulatih & admin) ---------- */
+function urusRekodAtlet(n,atletId){
+  if(!bolehRekod(n)) return toast("Hanya jurulatih acara ini atau Master Admin boleh mengedit rekod.");
+  const info=acaraInfo(n), a=atletById(atletId)||{};
+  const rs=rekodAcara(n).filter(r=>rekodMilik(r,atletId))
+    .sort((p,q)=>String(q.TARIKH+q.MASA).localeCompare(String(p.TARIKH+p.MASA)));
+  overlay(`<div class="big">Urus Rekod</div>
+  <div class="small">${esc(n)} • ${esc(a["NAMA PENUH"]||"")}</div>
+  <div class="small" style="margin-top:6px">Rekod yang ralat boleh ✎ diedit atau 🗑 dipadam. Pangkalan data akan dikemas kini.</div>
+  <div style="max-height:46vh;overflow:auto;margin-top:8px">
+  ${rs.map(r=>`<div class="item" style="margin-bottom:6px">
+    <div style="flex:1;min-width:0">
+      <div class="nm">${esc(r.KEPUTUSAN)}</div>
+      <div class="sub">${esc(fmtTarikh(r.TARIKH))} ${esc(fmtMasa(r.MASA))}${r.CATATAN?" • 📝 "+esc(r.CATATAN):""}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn sm ghost" onclick="formEditRekod('${esc(n)}','${esc(r.ID)}')">✎</button>
+      <button class="btn sm bad" onclick="padamRekodUrus('${esc(n)}','${esc(r.ID)}','${esc(atletId)}')">🗑</button>
+    </div>
+  </div>`).join("")||'<div class="small">Tiada rekod untuk atlet ini.</div>'}
+  </div>
+  <button class="btn ghost" onclick="tutup()">Tutup</button>`);
+}
+async function padamRekodUrus(n,id,atletId){
+  await padamRekod(n,id);
+  if(!rekodById(n,id)) urusRekodAtlet(n,atletId);
+}
+
+
+
 /* ---------- 8. Profil atlet — dengan Gambar (zoom/pan) + Fail lampiran ---------- */
 function vProfil(){
   const a=atletById(CTX.id);
@@ -1992,7 +2053,7 @@ function vDashboard(){
   const grp={};
   rekodAcara(dAcara).forEach(r=>{
     const id=String(r["ATLET ID"]); if(!Number(r.NILAI))return;
-    const g=(grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[],rek:[]});
+    const g=(grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:katKunci(dAcara,r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[],rek:[]});
     g.v.push(Number(r.NILAI));
     g.rek.push({nilai:Number(r.NILAI),tarikh:r.TARIKH||""});
   });
@@ -2044,7 +2105,8 @@ function vDashboard(){
             </div>
             <div class="sub" style="margin-top:4px"><span>📈 3 Terbaik Latihan: ${top3Html}</span></div>
           </div>
-          <div class="right"><div class="nm" style="color:var(--p2)">${fmtNilai(r.terbaik,info)}</div><div class="sub">terbaik</div><div class="sub">purata ${fmtNilai(r.purata,info)}</div></div>
+          <div class="right"><div class="nm" style="color:var(--p2)">${fmtNilai(r.terbaik,info)}</div><div class="sub">terbaik</div><div class="sub">purata ${fmtNilai(r.purata,info)}</div>
+            ${bolehRekod(dAcara)?`<button class="btn sm ghost" style="margin-top:6px" title="Edit / padam rekod ralat" onclick="event.stopPropagation();urusRekodAtlet('${esc(dAcara)}','${esc(r.id)}')">🗂 Urus Rekod</button>`:""}</div>
         </div>`;
       }).join("");
   }).join("");
@@ -2085,7 +2147,7 @@ function kiraRanking(namaAcara){
   const info=acaraInfo(namaAcara), grp={};
   rekodAcara(namaAcara).forEach(r=>{
     const id=String(r["ATLET ID"]); if(!Number(r.NILAI)) return;
-    const g=(grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:String(r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[],rek:[]});
+    const g=(grp[id]=grp[id]||{nama:r["NAMA ATLET"],kategori:katKunci(namaAcara,r.KATEGORI||"TIADA KATEGORI"),sekolah:r.SEKOLAH,v:[],rek:[]});
     g.v.push(Number(r.NILAI));
     g.rek.push({nilai:Number(r.NILAI),tarikh:r.TARIKH||""});
   });
