@@ -1823,6 +1823,242 @@ async function padamRekodUrus(n,id,atletId){
 
 
 /* ---------- 8. Profil atlet — dengan Gambar (zoom/pan) + Fail lampiran ---------- */
+/* ================= BMI ATLET =================
+   Tinggi direkod SEKALI sahaja; berat boleh direkod bila-bila masa.
+   Master Admin / Sub Admin / jurulatih dilantik boleh membetulkan kedua-duanya. */
+const bolehUrusBmi=()=>bolehUrusAtlet();
+const bmiSemua=()=>((DB&&DB.bmi)||[]);
+const bmiAtlet=id=>bmiSemua().filter(b=>String(b["ATLET ID"])===String(id))
+  .sort((a,b)=>String(b.TARIKH).localeCompare(String(a.TARIKH))||String(b["TARIKH & MASA"]).localeCompare(String(a["TARIKH & MASA"])));
+const bmiTerkini=id=>bmiAtlet(id)[0]||null;
+const tinggiAtlet=a=>Number((a&&(a["TINGGI (CM)"]||a.TINGGI))||0)||Number((bmiTerkini(a&&a.ID)||{})["TINGGI (CM)"]||0)||0;
+function kiraBMI(berat,tinggi){ const b=Number(berat)||0,t=(Number(tinggi)||0)/100; if(!b||!t) return 0; return Math.round(b/(t*t)*10)/10; }
+function statusBMI(v){ v=Number(v)||0; if(!v) return "-"; if(v<18.5) return "KURANG BERAT"; if(v<25) return "NORMAL"; if(v<30) return "BERLEBIHAN"; return "OBES"; }
+function warnaBMI(v){ v=Number(v)||0; if(!v) return "var(--mut)"; if(v<18.5) return "var(--warn)"; if(v<25) return "var(--ok)"; if(v<30) return "var(--warn)"; return "var(--bad)"; }
+
+/* Julat BMI optimum berbeza mengikut jenis acara olahraga */
+const BMI_JULAT=[
+  {ujian:/(lontar|peluru|cakera|lembing|tukul|balingan|rejam)/i, min:24.0, max:29.0, label:"Acara Balingan / Lontaran"},
+  {ujian:/(bergalah|lompat\s*tinggi|lompat\s*kijang|lompat\s*tiga|lompat\s*jauh|lompat)/i, min:19.0, max:22.0, label:"Acara Lompatan"},
+  {ujian:/(3000|5000|10000|merentas|marathon|maraton|jalan\s*kaki)/i, min:17.5, max:20.5, label:"Jarak Jauh"},
+  {ujian:/(800|1500|2000)/i, min:18.5, max:21.5, label:"Jarak Sederhana"},
+  {ujian:/(100|200|400|pagar|berganti|relay|lari\s*berganti)/i, min:20.0, max:23.5, label:"Pecut / Berpagar / Berganti-ganti"}
+];
+function bmiOptima(acara){
+  const n=String(acara||"");
+  for(const j of BMI_JULAT) if(j.ujian.test(n)) return j;
+  return {min:18.5,max:24.0,label:"Umum"};
+}
+const bmiTeksJulat=o=>`${o.min.toFixed(1)} – ${o.max.toFixed(1)}`;
+function nilaiBmiAcara(acara,bmi){
+  const o=bmiOptima(acara), v=Number(bmi)||0;
+  if(!v) return {status:"TIADA",o};
+  if(v<o.min) return {status:"RENDAH",o,jurang:Math.round((o.min-v)*10)/10};
+  if(v>o.max) return {status:"TINGGI",o,jurang:Math.round((v-o.max)*10)/10};
+  return {status:"OPTIMUM",o,jurang:0};
+}
+/* Analisis BMI satu acara sepanjang sesi latihan */
+function analisisBmiAcara(acara){
+  const o=bmiOptima(acara);
+  const senarai=penyertaan(acara).map(p=>{
+    const id=String(p["ATLET ID"]), a=atletById(id)||{}, sej=bmiAtlet(id);
+    const kini=sej[0]||null, awal=sej[sej.length-1]||null;
+    const bmi=kini?Number(kini.BMI)||0:0;
+    const n=nilaiBmiAcara(acara,bmi);
+    return {id,nama:p["NAMA ATLET"]||a["NAMA PENUH"]||id,kategori:p.KATEGORI||a.KATEGORI||"-",sekolah:p.SEKOLAH||a.SEKOLAH||"-",
+      tinggi:tinggiAtlet(a),berat:kini?Number(kini["BERAT (KG)"])||0:0,bmi,
+      awal:awal?Number(awal.BMI)||0:0,ubah:(kini&&awal)?Math.round((Number(kini.BMI)-Number(awal.BMI))*10)/10:0,
+      bilangan:sej.length,tarikh:kini?kini.TARIKH:"",status:n.status,jurang:n.jurang||0};
+  }).sort((x,y)=>String(x.kategori).localeCompare(String(y.kategori))||String(x.nama).localeCompare(String(y.nama)));
+  const adaData=senarai.filter(x=>x.bmi>0);
+  const capai=adaData.filter(x=>x.status==="OPTIMUM");
+  const belum=adaData.filter(x=>x.status!=="OPTIMUM");
+  const tiada=senarai.filter(x=>!x.bmi);
+  return {acara,o,senarai,adaData,capai,belum,tiada,
+    purata:adaData.length?Math.round(adaData.reduce((s,x)=>s+x.bmi,0)/adaData.length*10)/10:0,
+    peratus:adaData.length?Math.round(capai.length/adaData.length*100):0};
+}
+
+/* ---------- Kad BMI dalam profil atlet ---------- */
+function kadBmi(a){
+  const sej=bmiAtlet(a.ID), t=tinggiAtlet(a), kini=sej[0]||null;
+  const bmi=kini?Number(kini.BMI)||0:0;
+  const acaraDia=acaraList().filter(x=>penyertaan(x.ACARA).some(p=>String(p["ATLET ID"])===String(a.ID)));
+  const boleh=bolehUrusBmi();
+  const barisAcara=acaraDia.map(x=>{
+    const n=nilaiBmiAcara(x.ACARA,bmi);
+    const w=n.status==="OPTIMUM"?"var(--ok)":n.status==="TIADA"?"var(--mut)":"var(--warn)";
+    const teks=n.status==="OPTIMUM"?"✅ Optimum":n.status==="TIADA"?"— Tiada data":(n.status==="RENDAH"?`▲ Perlu naik ${n.jurang}`:`▼ Perlu turun ${n.jurang}`);
+    return `<div class="sub" style="display:flex;gap:8px;align-items:center"><span style="flex:1">${esc(x.ACARA)} <span style="opacity:.7">(optimum ${bmiTeksJulat(n.o)})</span></span><b style="color:${w}">${teks}</b></div>`;
+  }).join("")||'<div class="sub">Belum ditag ke mana-mana acara.</div>';
+  return `<div class="card">
+    <div class="row" style="align-items:center"><div style="flex:1"><h3>⚖️ BMI &amp; Komposisi Badan</h3>
+      <div class="small">Tinggi direkod sekali sahaja • berat boleh direkod bila-bila masa.</div></div>
+      ${boleh?`<button class="btn sm" onclick="formBmi('${esc(a.ID)}')">+ Rekod Berat</button>`:""}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="stat"><b>${t?t+" cm":"-"}</b><span class="small">Tinggi ${boleh?`<span class="pill" style="cursor:pointer" onclick="formTinggi('${esc(a.ID)}')">✎</span>`:""}</span></div>
+      <div class="stat"><b>${kini?Number(kini["BERAT (KG)"]).toFixed(1)+" kg":"-"}</b><span class="small">Berat terkini</span></div>
+      <div class="stat"><b style="color:${warnaBMI(bmi)}">${bmi?bmi.toFixed(1):"-"}</b><span class="small">${esc(statusBMI(bmi))}</span></div>
+    </div>
+    ${!t?`<div class="small" style="margin-top:8px;color:var(--warn)">⚠️ Tinggi belum ditetapkan — sila tetapkan tinggi sebelum merekod berat.</div>`:""}
+    <hr/>
+    <div class="small" style="margin-bottom:4px"><b>Penilaian BMI mengikut acara</b></div>
+    ${barisAcara}
+    <hr/>
+    <div class="small" style="margin-bottom:4px"><b>Sejarah BMI sepanjang sesi latihan</b> (${sej.length} rekod)</div>
+    ${sej.length?sejarahBmiHtml(sej,boleh):'<div class="sub">Belum ada rekod berat.</div>'}
+  </div>`;
+}
+function sejarahBmiHtml(sej,boleh){
+  const maxB=Math.max(...sej.map(x=>Number(x.BMI)||0),1);
+  const graf=sej.slice(0,12).slice().reverse().map(x=>{
+    const v=Number(x.BMI)||0, h=Math.max(6,Math.round(v/maxB*54));
+    return `<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px" title="${esc(fmtTarikh(x.TARIKH))} — BMI ${v}">
+      <span style="font-size:9px;color:var(--mut)">${v?v.toFixed(1):""}</span>
+      <div style="width:100%;max-width:22px;height:${h}px;border-radius:6px 6px 0 0;background:${warnaBMI(v)};opacity:.85"></div></div>`;
+  }).join("");
+  return `<div style="display:flex;align-items:flex-end;gap:4px;height:78px;margin:6px 0 10px">${graf}</div>`
+   + sej.slice(0,10).map(x=>`<div class="sub" style="display:flex;align-items:center;gap:8px">
+      <span style="flex:1">• ${esc(fmtTarikh(x.TARIKH))} — <b>${Number(x["BERAT (KG)"]).toFixed(1)} kg</b> • BMI <b style="color:${warnaBMI(x.BMI)}">${Number(x.BMI).toFixed(1)}</b> <span class="chip">${esc(x.STATUS||statusBMI(x.BMI))}</span></span>
+      ${boleh?`<button class="btn sm ghost" style="padding:2px 8px" onclick="formBmi('${esc(x["ATLET ID"])}','${esc(x.ID)}')">✎</button>
+      <button class="btn sm bad" style="padding:2px 8px" onclick="padamBmi('${esc(x.ID)}')">🗑</button>`:""}
+    </div>`).join("");
+}
+
+function formTinggi(id){
+  const a=atletById(id); if(!a) return;
+  const t=tinggiAtlet(a);
+  overlay(`<div class="big">${t?"Betulkan":"Tetapkan"} Tinggi Atlet</div>
+    <div class="small">${esc(a["NAMA PENUH"])} — tinggi hanya ditetapkan <b>sekali</b> sepanjang sesi latihan. Sub Admin &amp; jurulatih yang dilantik boleh membetulkannya jika tersalah.</div>
+    <label>Tinggi (cm)</label><input id="bTinggi" type="number" step="0.1" inputmode="decimal" value="${t||""}" placeholder="Cth: 165"/>
+    <button class="btn" id="btnTinggi" onclick="simpanTinggi('${esc(id)}')">Simpan Tinggi</button>
+    <button class="btn ghost" onclick="tutup()">Batal</button>`);
+}
+async function simpanTinggi(id){
+  const b=$("#btnTinggi"), t=Number($("#bTinggi").value);
+  if(!t||t<80||t>250) return toast("Tinggi tidak munasabah (80–250 cm)");
+  if(b){b.disabled=true;b.textContent="Menyimpan…";}
+  try{
+    await api("tetapkanTinggi",{atletId:id,tinggi:t,paksa:1,...who()});
+    const a=atletById(id); if(a) a["TINGGI (CM)"]=t;
+    (DB.bmi||[]).forEach(x=>{ if(String(x["ATLET ID"])===String(id)){ x["TINGGI (CM)"]=t; x.BMI=kiraBMI(x["BERAT (KG)"],t); x.STATUS=statusBMI(x.BMI); } });
+    tutup(); render(); toast("Tinggi disimpan");
+  }catch(e){ toastRalat(e); if(b){b.disabled=false;b.textContent="Simpan Tinggi";} }
+}
+
+function formBmi(id,rekodId){
+  const a=atletById(id); if(!a) return;
+  const r=rekodId?bmiAtlet(id).find(x=>String(x.ID)===String(rekodId)):null;
+  const t=tinggiAtlet(a);
+  overlay(`<div class="big">${r?"Betulkan Rekod BMI":"Rekod Berat / BMI"}</div>
+    <div class="small">${esc(a["NAMA PENUH"])} • Tinggi: <b>${t?t+" cm":"belum ditetapkan"}</b></div>
+    ${t?"":`<label>Tinggi (cm) — sekali sahaja</label><input id="bT" type="number" step="0.1" inputmode="decimal" placeholder="Cth: 165"/>`}
+    <label>Tarikh</label><input id="bTk" type="date" value="${esc(r?String(r.TARIKH).slice(0,10):today())}"/>
+    <label>Berat (kg)</label><input id="bB" type="number" step="0.1" inputmode="decimal" value="${r?Number(r["BERAT (KG)"]):""}" placeholder="Cth: 52.5"/>
+    <label>Catatan</label><input id="bC" value="${esc(r?(r.CATATAN||""):"")}" placeholder="Pilihan"/>
+    <div id="bPrev" class="small" style="margin-top:8px"></div>
+    <button class="btn" id="btnBmi" onclick="simpanBmi('${esc(id)}'${r?",'"+esc(r.ID)+"'":""})">Simpan</button>
+    <button class="btn ghost" onclick="tutup()">Batal</button>`);
+  const hitung=()=>{ const tt=t||Number(($("#bT")||{}).value||0); const v=kiraBMI(($("#bB")||{}).value,tt);
+    $("#bPrev").innerHTML=v?`BMI: <b style="color:${warnaBMI(v)}">${v.toFixed(1)}</b> • ${statusBMI(v)}`:""; };
+  ["#bB","#bT"].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener("input",hitung); });
+  hitung();
+}
+async function simpanBmi(id,rekodId){
+  const a=atletById(id)||{}, btn=$("#btnBmi");
+  const t=tinggiAtlet(a)||Number(($("#bT")||{}).value||0);
+  const berat=Number($("#bB").value), tarikh=$("#bTk").value||today(), catatan=$("#bC").value.trim();
+  if(!t) return toast("Sila isi tinggi atlet dahulu");
+  if(!berat||berat<15||berat>250) return toast("Berat tidak munasabah (15–250 kg)");
+  if(btn){btn.disabled=true;btn.textContent="Menyimpan…";}
+  try{
+    if(rekodId){
+      const r=await api("kemaskiniBmi",{id:rekodId,tarikh,tinggi:t,berat,catatan,...who()});
+      DB.bmi=(DB.bmi||[]).map(x=>String(x.ID)===String(rekodId)?(r&&r.rekod?r.rekod:x):x);
+    }else{
+      const r=await api("bmi",{atletId:id,nama:a["NAMA PENUH"]||"",kategori:a.KATEGORI||"",sekolah:a.SEKOLAH||"",tarikh,tinggi:t,berat,catatan,...who()});
+      (DB.bmi=DB.bmi||[]).push((r&&r.rekod)||{ID:"tmp"+Date.now(),"ATLET ID":id,"NAMA ATLET":a["NAMA PENUH"]||"",KATEGORI:a.KATEGORI||"",SEKOLAH:a.SEKOLAH||"",TARIKH:tarikh,"TINGGI (CM)":t,"BERAT (KG)":berat,BMI:kiraBMI(berat,t),STATUS:statusBMI(kiraBMI(berat,t)),CATATAN:catatan});
+      if(a && !a["TINGGI (CM)"]) a["TINGGI (CM)"]=t;
+    }
+    tutup(); render(); toast("Rekod BMI disimpan");
+  }catch(e){ toastRalat(e); if(btn){btn.disabled=false;btn.textContent="Simpan";} }
+}
+async function padamBmi(rid){
+  if(!confirm("Padam rekod BMI ini?")) return;
+  try{ await api("padamBmi",{id:rid,...who()});
+    DB.bmi=(DB.bmi||[]).filter(x=>String(x.ID)!==String(rid)); render(); toast("Rekod BMI dipadam");
+  }catch(e){ toastRalat(e); }
+}
+
+/* ---------- Panel ringkas BMI dalam Dashboard ---------- */
+function panelBmi(){
+  const senarai=acaraList().map(x=>analisisBmiAcara(x.ACARA)).filter(r=>r.senarai.length);
+  if(!senarai.length) return "";
+  const jumAtlet=new Set(), jumCapai=new Set();
+  senarai.forEach(r=>{ r.adaData.forEach(x=>jumAtlet.add(x.id)); r.capai.forEach(x=>jumCapai.add(x.id)); });
+  const belum=jumAtlet.size-jumCapai.size;
+  return `<div class="card">
+    <div class="row" style="align-items:center"><div style="flex:1"><h3>⚖️ Analisis BMI Sepanjang Sesi Latihan</h3>
+      <div class="small">Setiap acara mempunyai julat BMI optimum yang berbeza.</div></div>
+      <button class="btn sm" onclick="cetakLaporanBmi()">🖨 Laporan BMI</button></div>
+    <div class="row" style="margin-top:10px">
+      <div class="stat"><b>${jumAtlet.size}</b><span class="small">Atlet ada data BMI</span></div>
+      <div class="stat"><b style="color:var(--ok)">${jumCapai.size}</b><span class="small">Capai BMI terbaik</span></div>
+      <div class="stat"><b style="color:var(--warn)">${belum}</b><span class="small">Belum capai</span></div>
+    </div>
+    <div style="margin-top:10px">
+      ${senarai.map(r=>`<div class="sub" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">
+        <span style="flex:1;min-width:150px"><b>${esc(r.acara)}</b> <span style="opacity:.7">• optimum ${bmiTeksJulat(r.o)} (${esc(r.o.label)})</span></span>
+        <span>Purata <b>${r.purata||"-"}</b></span>
+        <span style="color:var(--ok)">✅ ${r.capai.length}</span>
+        <span style="color:var(--warn)">⚠️ ${r.belum.length}</span>
+        <span style="min-width:90px;height:7px;border-radius:99px;background:rgba(255,255,255,.12);position:relative;overflow:hidden">
+          <i style="position:absolute;inset:0 auto 0 0;width:${r.peratus}%;background:linear-gradient(90deg,var(--ok),var(--p2))"></i></span>
+        <b>${r.peratus}%</b>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ---------- Laporan BMI boleh cetak ---------- */
+function cetakLaporanBmi(){
+  const senarai=acaraList().map(x=>analisisBmiAcara(x.ACARA)).filter(r=>r.senarai.length);
+  if(!senarai.length) return toast("Tiada data BMI untuk dilaporkan.");
+  const setA=new Set(), setC=new Set();
+  senarai.forEach(r=>{ r.adaData.forEach(x=>setA.add(x.id)); r.capai.forEach(x=>setC.add(x.id)); });
+  const ringkas=`
+  <div class="meta" style="margin:6px 0 14px">
+    <span><b>Jumlah atlet berdata BMI:</b> ${setA.size}</span>
+    <span><b>Mencapai BMI terbaik:</b> ${setC.size} atlet</span>
+    <span><b>Belum mencapai:</b> ${setA.size-setC.size} atlet</span>
+    <span><b>Acara dianalisis:</b> ${senarai.length}</span>
+  </div>
+  <h2 class="acara">RINGKASAN BMI MENGIKUT ACARA</h2>
+  <table><thead><tr><th>Acara</th><th>Kumpulan</th><th class="num">BMI Optimum</th><th class="num">Purata BMI</th>
+    <th class="num">Atlet</th><th class="num">Capai</th><th class="num">Belum</th><th class="num">% Capai</th></tr></thead><tbody>
+    ${senarai.map(r=>`<tr${r.peratus>=70?' class="emas"':''}><td><b>${esc(r.acara)}</b></td><td>${esc(r.o.label)}</td>
+      <td class="num">${bmiTeksJulat(r.o)}</td><td class="num">${r.purata||"-"}</td><td class="num">${r.adaData.length}</td>
+      <td class="num"><b>${r.capai.length}</b></td><td class="num">${r.belum.length}</td><td class="num">${r.peratus}%</td></tr>`).join("")}
+  </tbody></table>`;
+  const butiran=senarai.map(r=>`<div class="blok"><h2 class="acara">${esc(r.acara)} — JULAT BMI OPTIMUM ${bmiTeksJulat(r.o)}</h2>
+    <div class="t3" style="margin-bottom:6px"><b>${r.capai.length}</b> atlet telah mencapai BMI terbaik • <b>${r.belum.length}</b> atlet belum mencapai${r.tiada.length?` • ${r.tiada.length} atlet tiada data BMI`:""}.</div>
+    <table><thead><tr><th class="no">#</th><th>Nama Atlet</th><th>Kategori</th><th class="num">Tinggi (cm)</th><th class="num">Berat (kg)</th>
+      <th class="num">BMI Terkini</th><th class="num">Perubahan</th><th>Status Kesihatan</th><th>Penilaian Acara</th><th>Tindakan</th></tr></thead><tbody>
+      ${r.senarai.map((x,i)=>{
+        const ok=x.status==="OPTIMUM";
+        const nilai=!x.bmi?"Tiada data":ok?"✔ Capai BMI terbaik":(x.status==="RENDAH"?"Bawah julat":"Atas julat");
+        const tindakan=!x.bmi?"Rekod berat atlet":ok?"Kekalkan berat semasa":(x.status==="RENDAH"?`Naik ± ${(x.jurang*Math.pow(x.tinggi/100,2)).toFixed(1)} kg`:`Turun ± ${(x.jurang*Math.pow(x.tinggi/100,2)).toFixed(1)} kg`);
+        return `<tr${ok?' class="emas"':''}><td class="no">${i+1}</td><td>${esc(x.nama)}</td><td>${esc(x.kategori)}</td>
+          <td class="num">${x.tinggi||"-"}</td><td class="num">${x.berat?x.berat.toFixed(1):"-"}</td>
+          <td class="num"><b>${x.bmi?x.bmi.toFixed(1):"-"}</b></td>
+          <td class="num">${x.bilangan>1?(x.ubah>0?"+":"")+x.ubah.toFixed(1):"-"}</td>
+          <td>${x.bmi?esc(statusBMI(x.bmi)):"-"}</td><td>${nilai}</td><td>${tindakan}</td></tr>`;
+      }).join("")}
+    </tbody></table></div>`).join("");
+  bukaLaporan("Laporan Analisis BMI Atlet", ringkas+butiran);
+}
+
 function vProfil(){
   const a=atletById(CTX.id);
   if(!a) return app().innerHTML=`<div class="card">Atlet tidak dijumpai.<button class="btn" onclick="goBack()">Kembali</button></div>`;
@@ -1859,6 +2095,8 @@ function vProfil(){
     </div>
     <input type="file" id="pkrFail" class="hide" onchange="onPilihFail(event,'${esc(a.ID)}')"/>
   </div>
+
+  ${kadBmi(a)}
 
   <h3>Rekod Peribadi Mengikut Acara</h3>
   ${acaraDia.map(x=>{
@@ -2131,9 +2369,11 @@ function vDashboard(){
       <button class="btn sm" onclick="cetakLaporanPingat()">🥇 Laporan Anggaran Pingat</button>
       <button class="btn sm" onclick="cetakLaporanHarapan()">🏅 Laporan Harapan Emas / Podium</button>
       <button class="btn sm" onclick="cetakLaporanPrestasi()">📊 Laporan Prestasi Setiap Atlet</button>
+      <button class="btn sm" onclick="cetakLaporanBmi()">⚖️ Laporan BMI Atlet</button>
     </div>
     <div class="small" style="margin-top:8px">Analisis membandingkan <b>rekod terbaik latihan</b> setiap atlet dengan <b>rekod MSSK</b> (melepasi = <b style="color:#b45309">harapan emas</b>) dan <b>rekod NO.3 MSSK</b> (melepasi = <b style="color:#0f766e">harapan podium</b>) mengikut kategori.</div>
   </div>
+  ${panelBmi()}
   ${panelHarapan()}
   ${panelPingat(dAcara)}
   ${senarai||`<div class="card small">Tiada rekod untuk acara ini lagi.</div>`}`;

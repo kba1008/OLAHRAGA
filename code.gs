@@ -19,6 +19,7 @@ var SHEET_PENYERTAAN = "PENYERTAAN";
 var SHEET_FAIL = "FAIL_ATLET";
 var SHEET_KEJOHANAN = "REKOD_KEJOHANAN";
 var SHEET_KAT_GUGUR = "KATEGORI_GUGUR";
+var SHEET_BMI = "BMI";
 var PREFIX_REKOD = "REKOD_";
 
 /* ID Google Sheet UTAMA (pangkalan data). Skrip akan buka sheet ini terus,
@@ -46,6 +47,7 @@ HEADERS[SHEET_JURULATIH] = ["ACARA", "EMEL JURULATIH", "NAMA JURULATIH", "DILANT
 HEADERS[SHEET_PENYERTAAN] = ["ACARA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "REKOD PERIBADI", "DIMASUKKAN OLEH", "TARIKH", "SUSUNAN"];
 HEADERS[SHEET_KEJOHANAN] = ["ID", "ACARA", "KATEGORI", "NAMA KEJOHANAN", "TAHUN", "PEMEGANG REKOD", "NILAI", "KEPUTUSAN", "CATATAN", "DITETAPKAN OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_KAT_GUGUR] = ["ACARA", "KATEGORI", "STATUS", "OLEH", "TARIKH & MASA"];
+HEADERS[SHEET_BMI] = ["ID", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "TARIKH", "TINGGI (CM)", "BERAT (KG)", "BMI", "STATUS", "CATATAN", "DICATAT OLEH", "TARIKH & MASA"];
 HEADERS[SHEET_FAIL] = ["ID", "ATLET ID", "NAMA FAIL", "JENIS", "SAIZ (BYTES)", "URL", "DRIVE ID", "DIMUAT NAIK OLEH", "TARIKH & MASA"];
 var HEADER_REKOD = ["ID", "TARIKH", "MASA", "ATLET ID", "NAMA ATLET", "KATEGORI", "SEKOLAH", "KEPUTUSAN", "NILAI", "CATATAN", "DICATAT OLEH", "TARIKH & MASA REKOD"];
 
@@ -148,6 +150,8 @@ function setupPangkalanData() {
   dapatSheet(SHEET_FAIL, HEADERS[SHEET_FAIL], "#0aa5d6");
   dapatSheet(SHEET_KEJOHANAN, HEADERS[SHEET_KEJOHANAN], "#b45309");
   dapatSheet(SHEET_KAT_GUGUR, HEADERS[SHEET_KAT_GUGUR], "#b42318");
+  dapatSheet(SHEET_BMI, HEADERS[SHEET_BMI], "#0f766e");
+  try { pastikanKolumTinggi(); } catch (e) {}
   var sa = dapatSheet(SHEET_ACARA, HEADERS[SHEET_ACARA], "#6d28f9");
   if (sa.getLastRow() < 2) sa.getRange(2, 1, ACARA_LALAI.length, 6).setValues(ACARA_LALAI);
   baca(SHEET_ACARA).forEach(function (a) { if (a["ACARA"]) sheetRekod(a["ACARA"]); });
@@ -202,6 +206,7 @@ function semuaData(p) {
   setupSekaliSahaja();
   try { pastikanKolumAcara(); } catch (e) {}
   try { pastikanKolumPenyertaan(); } catch (e) {}
+  try { pastikanKolumTinggi(); } catch (e) {}
   var acara = baca(SHEET_ACARA).filter(function (a) { return a["ACARA"]; });
   acara.sort(function (a, b) {
     var x = Number(a["SUSUNAN"] || 0) || 9999, y = Number(b["SUSUNAN"] || 0) || 9999;
@@ -220,6 +225,7 @@ function semuaData(p) {
     failAtlet: baca(SHEET_FAIL),
     kejohanan: baca(SHEET_KEJOHANAN),
     katGugur: baca(SHEET_KAT_GUGUR),
+    bmi: baca(SHEET_BMI).map(function (b) { b["TARIKH"] = tarikhStr(b["TARIKH"]); return b; }),
     masaPelayan: nowStr()
   };
 }
@@ -389,7 +395,7 @@ function tambahAtlet(p) {
   var id = idBaharu("A", SHEET_ATLET);
   var urlGambar = p.gambar || "";
   if (p.gambarBase64) urlGambar = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: id + "_" + String(p.nama).replace(/[^A-Za-z0-9]+/g, "_") }).url;
-  ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", urlGambar, p.catatan || "", p.olehNama, nowStr()]);
+  ss().getSheetByName(SHEET_ATLET).appendRow([id, p.nama, p.noIc || "", p.jantina || "", p.kategori || "", p.sekolah || "", urlGambar, p.catatan || "", p.olehNama, nowStr(), Number(p.tinggi) || ""]);
   return { id: id, gambar: urlGambar };
 }
 
@@ -423,6 +429,7 @@ function padamAtlet(p) {
   /* Buang kehadiran & penyertaan (keluar dari SEMUA acara) */
   buangBarisMengikut(SHEET_KEHADIRAN, 2, p.id);
   buangBarisMengikut(SHEET_PENYERTAAN, 1, p.id);
+  buangBarisMengikut(SHEET_BMI, 1, p.id);
   /* Buang semua rekod latihan atlet ini dalam setiap acara */
   baca(SHEET_ACARA).forEach(function (a) {
     if (a["ACARA"]) buangBarisMengikut(namaSheetRekod(a["ACARA"]), 3, p.id);
@@ -498,7 +505,7 @@ function kemaskiniAtlet(p) {
         var g = muatNaikGambar({ gambarBase64: p.gambarBase64, namaFail: p.id + "_" + nowStr().replace(/[^0-9]/g, "") });
         p.gambar = g.url;
       }
-      var medan = { nama: 1, noIc: 2, jantina: 3, kategori: 4, sekolah: 5, gambar: 6, catatan: 7 };
+      var medan = { nama: 1, noIc: 2, jantina: 3, kategori: 4, sekolah: 5, gambar: 6, catatan: 7, tinggi: 10 };
       // Kemaskini SEMUA medan yang dihantar (termasuk catatan kosong), supaya UI tidak perlu refresh.
       Object.keys(medan).forEach(function (k) { if (p[k] !== undefined && p[k] !== null) v[i][medan[k]] = p[k]; });
       v[i][8] = p.olehNama;
@@ -1075,8 +1082,143 @@ var TINDAKAN = {
   tetapkanDipertandingkan: tetapkanDipertandingkan,
   tetapkanKategoriGugur: tetapkanKategoriGugur,
   rekodKejohanan: simpanRekodKejohanan,
-  padamRekodKejohanan: padamRekodKejohanan
+  padamRekodKejohanan: padamRekodKejohanan,
+  tetapkanTinggi: tetapkanTinggi,
+  bmi: simpanBmi,
+  kemaskiniBmi: kemaskiniBmi,
+  padamBmi: padamBmi
 };
+
+/* ================= BMI ATLET =================
+   • TINGGI (CM) disimpan SEKALI dalam sheet ATLET (kolum "TINGGI (CM)").
+   • BERAT boleh direkod bila-bila masa (setiap rekod = satu baris sheet BMI).
+   • Master Admin, Sub Admin dan mana-mana jurulatih yang telah dilantik
+     boleh mengubah tinggi & berat sekiranya berlaku kesalahan. */
+
+function pastikanKolumTinggi() {
+  var s = dapatSheet(SHEET_ATLET, HEADERS[SHEET_ATLET], "#00a3c4");
+  var lc = Math.max(s.getLastColumn(), 1);
+  var head = s.getRange(1, 1, 1, lc).getValues()[0].map(function (x) { return String(x).toUpperCase().trim(); });
+  if (head.indexOf("TINGGI (CM)") >= 0) return s;
+  var col = lc + 1;
+  if (s.getMaxColumns() < col) s.insertColumnsAfter(s.getMaxColumns(), col - s.getMaxColumns());
+  s.getRange(1, col).setValue("TINGGI (CM)").setFontWeight("bold").setFontColor("#ffffff").setBackground("#00a3c4");
+  return s;
+}
+
+function bolehUrusBmi(emel) { return isAdmin(emel) || isJurulatihDilantik(emel); }
+
+function kiraBmi_(berat, tinggiCm) {
+  var b = Number(berat) || 0, t = (Number(tinggiCm) || 0) / 100;
+  if (!b || !t) return 0;
+  return Math.round((b / (t * t)) * 10) / 10;
+}
+function statusBmi_(bmi) {
+  var v = Number(bmi) || 0;
+  if (!v) return "";
+  if (v < 18.5) return "KURANG BERAT";
+  if (v < 25) return "NORMAL";
+  if (v < 30) return "BERLEBIHAN";
+  return "OBES";
+}
+
+function tinggiAtlet_(atletId) {
+  var s = ss().getSheetByName(SHEET_ATLET);
+  if (!s || s.getLastRow() < 2) return { baris: 0, tinggi: 0, atlet: null };
+  var v = s.getDataRange().getValues();
+  var kol = v[0].map(function (x) { return String(x).toUpperCase().trim(); }).indexOf("TINGGI (CM)");
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(atletId)) {
+      return { baris: i + 1, kol: kol + 1, tinggi: kol >= 0 ? (Number(v[i][kol]) || 0) : 0, atlet: v[i] };
+    }
+  }
+  return { baris: 0, tinggi: 0, atlet: null };
+}
+
+/* Tetapkan / betulkan tinggi atlet */
+function tetapkanTinggi(p) {
+  if (!bolehUrusBmi(p.olehEmel)) throw new Error("Hanya Master Admin, Sub Admin atau jurulatih yang dilantik boleh menetapkan tinggi atlet.");
+  pastikanKolumTinggi();
+  var t = Number(p.tinggi) || 0;
+  if (t < 80 || t > 250) throw new Error("Tinggi tidak munasabah (80–250 cm).");
+  var info = tinggiAtlet_(p.atletId);
+  if (!info.baris) throw new Error("Atlet tidak dijumpai.");
+  if (info.tinggi && !p.paksa) throw new Error("Tinggi telah ditetapkan. Gunakan pilihan betulkan tinggi.");
+  ss().getSheetByName(SHEET_ATLET).getRange(info.baris, info.kol).setValue(t);
+  /* Kemaskini semula semua rekod BMI atlet ini supaya konsisten */
+  kiraSemulaBmiAtlet_(p.atletId, t);
+  return { ok: true, tinggi: t, bmi: baca(SHEET_BMI).filter(function (b) { return String(b["ATLET ID"]) === String(p.atletId); }) };
+}
+
+function kiraSemulaBmiAtlet_(atletId, tinggi) {
+  var s = ss().getSheetByName(SHEET_BMI);
+  if (!s || s.getLastRow() < 2) return;
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][1]) === String(atletId)) {
+      var bmi = kiraBmi_(v[i][7], tinggi);
+      s.getRange(i + 1, 7, 1, 4).setValues([[tinggi, v[i][7], bmi, statusBmi_(bmi)]]);
+    }
+  }
+}
+
+/* Rekod berat baharu (bila-bila masa) */
+function simpanBmi(p) {
+  if (!bolehUrusBmi(p.olehEmel)) throw new Error("Hanya Master Admin, Sub Admin atau jurulatih yang dilantik boleh merekod BMI.");
+  dapatSheet(SHEET_BMI, HEADERS[SHEET_BMI], "#0f766e");
+  pastikanKolumTinggi();
+  var info = tinggiAtlet_(p.atletId);
+  if (!info.baris) throw new Error("Atlet tidak dijumpai.");
+  var tinggi = Number(p.tinggi) || info.tinggi;
+  if (!tinggi) throw new Error("Sila tetapkan tinggi atlet dahulu.");
+  if (!info.tinggi && tinggi) ss().getSheetByName(SHEET_ATLET).getRange(info.baris, info.kol).setValue(tinggi);
+  var berat = Number(p.berat) || 0;
+  if (berat < 15 || berat > 250) throw new Error("Berat tidak munasabah (15–250 kg).");
+  var bmi = kiraBmi_(berat, tinggi), st = statusBmi_(bmi);
+  var id = idBaharu("B", SHEET_BMI);
+  var tarikh = p.tarikh || hariIni();
+  var baris = [id, p.atletId, p.nama || "", p.kategori || "", p.sekolah || "", tarikh, tinggi, berat, bmi, st, p.catatan || "", p.olehNama || "", nowStr()];
+  ss().getSheetByName(SHEET_BMI).appendRow(baris);
+  var out = {};
+  for (var j = 0; j < HEADERS[SHEET_BMI].length; j++) out[HEADERS[SHEET_BMI][j]] = baris[j];
+  return { ok: true, rekod: out, tinggi: tinggi };
+}
+
+/* Betulkan rekod BMI sedia ada */
+function kemaskiniBmi(p) {
+  if (!bolehUrusBmi(p.olehEmel)) throw new Error("Hanya Master Admin, Sub Admin atau jurulatih yang dilantik boleh mengubah rekod BMI.");
+  var s = ss().getSheetByName(SHEET_BMI);
+  if (!s) throw new Error("Rekod BMI tidak dijumpai.");
+  var v = s.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === String(p.id)) {
+      if (p.tarikh) v[i][5] = p.tarikh;
+      if (p.tinggi) v[i][6] = Number(p.tinggi) || v[i][6];
+      if (p.berat) v[i][7] = Number(p.berat) || v[i][7];
+      if (p.catatan !== undefined) v[i][10] = p.catatan;
+      v[i][8] = kiraBmi_(v[i][7], v[i][6]);
+      v[i][9] = statusBmi_(v[i][8]);
+      v[i][11] = p.olehNama || "";
+      v[i][12] = nowStr();
+      s.getRange(i + 1, 1, 1, HEADERS[SHEET_BMI].length).setValues([v[i].slice(0, HEADERS[SHEET_BMI].length)]);
+      var out = {};
+      for (var j = 0; j < HEADERS[SHEET_BMI].length; j++) out[HEADERS[SHEET_BMI][j]] = v[i][j];
+      return { ok: true, rekod: out };
+    }
+  }
+  throw new Error("Rekod BMI tidak dijumpai.");
+}
+
+function padamBmi(p) {
+  if (!bolehUrusBmi(p.olehEmel)) throw new Error("Hanya Master Admin, Sub Admin atau jurulatih yang dilantik boleh memadam rekod BMI.");
+  var s = ss().getSheetByName(SHEET_BMI);
+  if (!s) throw new Error("Rekod BMI tidak dijumpai.");
+  var v = s.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === String(p.id)) { s.deleteRow(i + 1); return { ok: true }; }
+  }
+  throw new Error("Rekod BMI tidak dijumpai.");
+}
 
 function balas(obj, callback) {
   var teks = JSON.stringify(obj);
