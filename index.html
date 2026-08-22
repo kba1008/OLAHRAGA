@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>AtletTraning — Kehadiran & Rekod Latihan Atlet</title>
-<meta name="description" content="Sistem kehadiran atlet dan rekod prestasi latihan pusat. Pangkalan data Google Sheet." />
+<meta name="description" content="Sistem kehadiran atlet dan rekod prestasi latihan pusat." />
 <meta name="theme-color" content="#4f2df5" />
 <link rel="manifest" href="./manifest.json" />
 <style>
@@ -258,7 +258,7 @@ table.mx tfoot td.lbl{text-align:right;text-transform:uppercase}
    AtletTraning — PWA (versi kemas)
    SUMBER DATA TUNGGAL: Google Sheet (melalui Apps Script Web App)
    ============================================================ */
-const API_URL_LALAI="https://script.google.com/macros/s/AKfycbwm5Ewzf31BNDEI12CGzU8fgZITXOHBpyD2tbA9uabsVfSfKQFK1wcr0UyfQl5uYPBj/exec";
+const API_URL_LALAI="https://script.google.com/macros/s/AKfycbx9YnGHgPzTiRAwioyItL-hXIuHN-szwwEK3D33FGqxCbOyLhzgw-4TqVlXxkq3Dy-4Pg/exec";
 const LS_API="at_api_url", LS_USER="at_user", LS_TEK="at_teknision";
 const PIN_TEKNISION="101010";
 let API=localStorage.getItem(LS_API)||API_URL_LALAI;
